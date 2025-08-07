@@ -653,7 +653,7 @@ async def analyze_security_event(event: SecurityEventRequest):
         logger.error(f"Error analyzing security event: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during event analysis")
 
-@app.get("/ci_cd_test")
+@app.get("/test_cicd")
 async def health_check():
     """Health check endpoint."""
     return {
