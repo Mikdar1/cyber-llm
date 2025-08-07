@@ -1,0 +1,22 @@
+# Core Framework Dependencies
+streamlit
+neo4j
+python-dotenv
+
+# API Dependencies
+fastapi
+uvicorn
+pydantic
+
+# LLM and AI Dependencies
+langchain-google-genai
+langchain-core
+
+# Data Processing Dependencies
+PyPDF2
+pandas
+requests
+
+# Visualization and Monitoring
+plotly
+watchdog

@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  chat-app:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      - SERVICE_NAME=chat-app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api-service:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    command: uvicorn api_service:app --host 0.0.0.0 --port 8000
+    environment:
+      - SERVICE_NAME=api-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: cybersecurity-platform
