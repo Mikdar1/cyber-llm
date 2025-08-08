@@ -28,6 +28,9 @@ A comprehensive cybersecurity platform that provides both an interactive chat in
 - **FastAPI REST Service**: High-performance API for security event analysis
 - **Streamlit Chat Interface**: Interactive web-based exploration
 - **Document Processing**: PDF parsing and structured data extraction
+- **JWT Authentication**: Secure token-based authentication for both chat and API services
+- **Session Management**: Streamlit session state handling for user authentication
+- **Environment Configuration**: Configurable credentials and API keys via environment variables
 
 ## 📋 Prerequisites
 
@@ -56,12 +59,20 @@ A comprehensive cybersecurity platform that provides both an interactive chat in
    Copy `.env.example` to `.env` and configure:
 
    ```env
+   # Core Configuration
    GEMINI_API_KEY=your_gemini_api_key_here
    MODEL_NAME=gemini-2.5-flash-preview-05-20
    NEO4J_URI=your_neo4j_uri_here
    NEO4J_USERNAME=your_neo4j_username
    NEO4J_PASSWORD=your_neo4j_password
    NEO4J_DATABASE=neo4j
+
+   # Authentication Settings
+   APP_USERNAME=admin
+   APP_PASSWORD=cybersec2025
+   JWT_SECRET_KEY=your_jwt_secret_key_change_this_in_production
+   JWT_ALGORITHM=HS256
+   JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
    ```
 
 4. **Add framework documents**:
@@ -139,13 +150,53 @@ Run with: `docker-compose up`
 
 ## 💡 Usage
 
+### 🔐 Authentication
+
+Both the Streamlit chat application and FastAPI service require authentication:
+
+**Default Credentials:**
+
+- **Username**: `admin`
+- **Password**: `cybersec2025`
+
+> ⚠️ **Important**: Change these credentials in production by updating the environment variables.
+
 ### 🤖 REST API Service
 
-The API provides automated security event analysis for integration with security tools:
+The API provides automated security event analysis for integration with security tools.
 
-#### Endpoint: `POST /analyze`
+#### Authentication
 
-**Request Format:**
+**1. Get Access Token:**
+
+```bash
+curl -X POST "http://localhost:8000/login" \
+     -H "Content-Type: application/json" \
+     -d '{"username": "admin", "password": "cybersec2025"}'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+**2. Use Token in Requests:**
+
+```bash
+TOKEN="your_jwt_token_here"
+curl -X POST "http://localhost:8000/analyze" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{...event_data...}'
+```
+
+#### Endpoint: `POST /analyze` (Authentication Required)
+
+**Event Data Format:**
 
 ```json
 {
@@ -232,6 +283,8 @@ The API provides automated security event analysis for integration with security
 │   │   └── graph_operations.py     # Multi-framework queries
 │   ├── api/                        # LLM integration
 │   │   └── llm_service.py          # Gemini API wrapper
+│   ├── auth/                       # Authentication
+│   │   └── auth.py                 # Authentication logic
 │   ├── web/                        # UI components
 │   │   ├── components.py           # Streamlit components
 │   │   └── ui.py                  # CSS styles
@@ -268,22 +321,24 @@ The application requires a Neo4j database instance. You can use:
 
 ## 🔍 Data Sources
 
-The application ingests data from:
+The application automatically ingests data from multiple cybersecurity frameworks:
 
+- **NIST Cybersecurity Framework**: Core framework controls and guidelines
+- **CIS Controls**: Critical security controls and implementation guidance
 - **MITRE ATT&CK Framework**: Latest techniques, tactics, and procedures
-- **Threat Groups**: Known APT groups and their TTPs
-- **Malware**: Documented malware families and their behaviors
-- **Tools**: Security tools and their capabilities
-
-Data is fetched from the official MITRE CTI repository: https://github.com/mitre/cti
+- **FFIEC IT Handbook**: Financial sector cybersecurity requirements
+- **HIPAA Security**: Healthcare data protection requirements
+- **PCI DSS**: Payment card industry security standards
 
 ## 🚨 Security Considerations
 
 - Store API keys securely in environment variables
 - Use HTTPS in production deployments
-- Implement proper authentication for production use
+- Change default authentication credentials for production use
+- Use strong JWT secret keys in production
 - Regularly update dependencies for security patches
 - Consider network security for Neo4j database access
+- Implement proper session management for multi-user environments
 
 ## 🔄 Data Updates
 
@@ -352,7 +407,7 @@ For issues and questions:
 
 ## 🔮 Future Enhancements
 
-- Support for additional cybersecurity frameworks (NIST, ISO 27001)
+- Support for additional cybersecurity frameworks (ISO 27001)
 - Real-time threat intelligence feeds
 - Custom threat modeling capabilities
 - Integration with SIEM systems

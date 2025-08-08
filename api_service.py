@@ -19,9 +19,10 @@ Usage:
     uvicorn api_service:app --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 import logging
 import json
@@ -30,10 +31,14 @@ import json
 from src.knowledge_base.database import create_graph_connection
 from src.api.llm_service import get_llm
 from src.cybersecurity.attack_ingestion import ingest_attack_data
+from src.auth.auth import auth_manager, get_current_user_from_token
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Security scheme
+security = HTTPBearer()
 
 # FastAPI app instance
 app = FastAPI(
@@ -45,6 +50,32 @@ app = FastAPI(
 # Global variables for services
 graph = None
 llm = None
+
+# Authentication dependency
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Dependency to get current authenticated user from JWT token.
+    
+    Args:
+        credentials: HTTP authorization credentials containing the Bearer token
+        
+    Returns:
+        Username if token is valid
+        
+    Raises:
+        HTTPException: If token is invalid or user is not authenticated
+    """
+    token = credentials.credentials
+    username = get_current_user_from_token(token)
+    
+    if username is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return username
 
 def initialize_api_knowledge_base(graph_connection):
     """
@@ -133,6 +164,26 @@ class TerminateAndExecuteResponse(BaseModel):
     action: str = "Terminate and Execute Command"
     auto: str  # "yes" or "no"
     command: str
+
+
+# Authentication models
+class LoginRequest(BaseModel):
+    """Login request model."""
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    """Login response model."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class UserInfo(BaseModel):
+    """User information model."""
+    username: str
+    authenticated: bool
 
 
 def analyze_threat_level(event_data: SecurityEventRequest, threat_intel: str) -> str:
@@ -629,8 +680,57 @@ def generate_response_recommendation(event_data: SecurityEventRequest) -> Dict[s
         }
 
 
+# Authentication endpoints
+@app.post("/login", response_model=LoginResponse)
+async def login(credentials: LoginRequest):
+    """
+    Authenticate user and return access token.
+    
+    Args:
+        credentials: User login credentials
+        
+    Returns:
+        Access token and token information
+        
+    Raises:
+        HTTPException: If credentials are invalid
+    """
+    # Authenticate user
+    if not auth_manager.authenticate_user(credentials.username, credentials.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    # Create access token
+    access_token = auth_manager.create_user_token(credentials.username)
+    
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=auth_manager.access_token_expire_minutes * 60  # Convert to seconds
+    )
+
+
+@app.get("/me", response_model=UserInfo)
+async def get_current_user_info(current_user: str = Depends(get_current_user)):
+    """
+    Get current authenticated user information.
+    
+    Args:
+        current_user: Current authenticated user (from dependency)
+        
+    Returns:
+        User information
+    """
+    return UserInfo(username=current_user, authenticated=True)
+
+
 @app.post("/analyze", response_model=Dict[str, Any])
-async def analyze_security_event(event: SecurityEventRequest):
+async def analyze_security_event(
+    event: SecurityEventRequest, 
+    current_user: str = Depends(get_current_user)
+):
     """
     Analyze a security event and provide response recommendation.
     
@@ -654,8 +754,8 @@ async def analyze_security_event(event: SecurityEventRequest):
         raise HTTPException(status_code=500, detail="Internal server error during event analysis")
 
 @app.get("/test_cicd")
-async def health_check():
-    """Health check endpoint."""
+async def test_cicd_endpoint():
+    """Test CI/CD endpoint."""
     return {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
@@ -668,7 +768,7 @@ async def health_check():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint (no authentication required)."""
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -681,14 +781,27 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint with API information."""
+    """Root endpoint with API information (no authentication required)."""
     return {
         "service": "Cybersecurity Security Event Analysis API",
         "version": "1.0.0",
+        "description": "API for analyzing security events using cybersecurity threat intelligence",
+        "authentication": {
+            "type": "JWT Bearer Token",
+            "login_endpoint": "POST /login",
+            "required_for": ["analyze", "me"]
+        },
         "endpoints": {
-            "analyze": "POST /analyze - Analyze security events",
-            "health": "GET /health - Health check",
-            "docs": "GET /docs - API documentation"
+            "login": "POST /login - Authenticate and get access token",
+            "me": "GET /me - Get current user info (requires auth)",
+            "analyze": "POST /analyze - Analyze security events (requires auth)",
+            "health": "GET /health - Health check (no auth required)",
+            "docs": "GET /docs - API documentation (no auth required)"
+        },
+        "usage": {
+            "1": "POST /login with username and password to get access token",
+            "2": "Include 'Authorization: Bearer <token>' header in subsequent requests",
+            "3": "Use POST /analyze to analyze security events"
         }
     }
 

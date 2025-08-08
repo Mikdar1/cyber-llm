@@ -7,6 +7,9 @@ python-dotenv
 fastapi
 uvicorn
 pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
 
 # LLM and AI Dependencies
 langchain-google-genai

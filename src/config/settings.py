@@ -11,10 +11,16 @@ Environment Variables Required:
     NEO4J_PASSWORD: Neo4j database password
     GEMINI_API_KEY: Google Gemini API key for LLM integration
     MODEL_NAME: (Optional) Gemini model name, defaults to gemini-2.5-flash-preview-05-20
+    APP_USERNAME: Streamlit app login username
+    APP_PASSWORD: Streamlit app login password
+    JWT_SECRET_KEY: Secret key for JWT token generation
+    JWT_ALGORITHM: JWT algorithm (defaults to HS256)
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: JWT token expiration time in minutes
 
 Configuration Groups:
     - Neo4j Database Settings
     - Google Gemini LLM Settings
+    - Authentication Settings
 """
 
 import os
@@ -31,3 +37,10 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 # --- Google Gemini LLM Configuration ---
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash-preview-05-20")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# --- Authentication Configuration ---
+APP_USERNAME = os.getenv("APP_USERNAME", "admin")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "cybersec2025")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_jwt_secret_key_change_this_in_production")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
