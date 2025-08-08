@@ -1,20 +1,37 @@
-# Gunakan image Python resmi sebagai base
-FROM python:3.9-slim
+# ==============================================================================
+# File: Dockerfile
+# Description: Dockerfile untuk menjalankan Streamlit dan FastAPI
+# secara bersamaan menggunakan reverse proxy Nginx.
+# ==============================================================================
 
-# Tetapkan direktori kerja di dalam container
+# Gunakan image dasar Python Alpine yang efisien
+FROM python:alpine3.22
+
+# Set working directory di dalam kontainer
 WORKDIR /app
 
-# Salin file requirements.txt ke dalam container
-COPY requirements.txt .
+# Perbarui paket dan install Nginx, curl untuk health check
+RUN apk add --no-cache nginx curl
 
-# Install dependensi yang diperlukan
+# Salin requirements.txt dan install semua dependensi Python
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Salin sisa kode aplikasi ke dalam container
+# Salin semua file aplikasi, termasuk skrip startup dan konfigurasi Nginx
 COPY . .
 
-# Paparkan port yang akan digunakan oleh FastAPI
-EXPOSE 8000
+# Beri izin eksekusi pada skrip startup
+RUN chmod +x ./startup.sh
 
-# Jalankan aplikasi menggunakan uvicorn
-CMD ["uvicorn", "api_service:app", "--host", "0.0.0.0", "--port", "8000"]
+# Salin konfigurasi Nginx ke lokasi yang benar
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Expose port 80 untuk Nginx sebagai satu-satunya titik masuk
+EXPOSE 80
+
+# Health check untuk FastAPI di port 8000 (lewat Nginx)
+HEALTHCHECK CMD curl --fail http://localhost/docs || exit 1
+
+# Jadikan skrip startup sebagai ENTRYPOINT
+# Skrip ini akan menjalankan Nginx, FastAPI, dan Streamlit
+ENTRYPOINT ["./startup.sh"]
