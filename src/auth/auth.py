@@ -206,13 +206,13 @@ def render_login_page():
     import streamlit as st
     
     st.markdown("""
-    <div style="max-width: 400px; margin: 50px auto; padding: 40px; 
-                border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    <div style="max-width: 400px; margin: 20px auto; padding: 20px; 
+                border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
                 background: var(--background-color, #1e1e1e); 
                 border: 1px solid var(--border-color, #333);">
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: var(--text-color, #e0e0e0); margin-bottom: 10px;">🛡️ Cybersecurity Assistant</h1>
-            <p style="color: var(--secondary-text-color, #b0b0b0); margin: 0;">Please log in to access the platform</p>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <h3 style="color: var(--text-color, #e0e0e0); margin-bottom: 5px; font-size: 1.5em;">🛡️ Cybersecurity Assistant</h3>
+            <p style="color: var(--secondary-text-color, #b0b0b0); margin: 0; font-size: 0.9em;">Please log in to access the platform</p>
         </div>
     </div>
     <style>
@@ -252,7 +252,7 @@ def render_login_page():
     
     with col2:
         with st.form("login_form"):
-            st.markdown("### 🔐 Login")
+            st.markdown("#### 🔐 Login")
             username = st.text_input("Username", placeholder="Enter your username")
             password = st.text_input("Password", type="password", placeholder="Enter your password")
             submit_button = st.form_submit_button("Login", use_container_width=True)
