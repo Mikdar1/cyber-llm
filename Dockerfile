@@ -1,31 +1,37 @@
 # ==============================================================================
 # File: Dockerfile
-# Description: Dockerfile for the cybersecurity multi-framework platform
-# Supports both Streamlit chat app and FastAPI service
-# 
-# To build: docker build -t cybersecurity-platform .
-# To run chat app: docker run -p 8501:8501 --env-file .env cybersecurity-platform
-# To run API: docker run -p 8000:8000 --env-file .env cybersecurity-platform uvicorn api_service:app --host 0.0.0.0 --port 8000
+# Description: Dockerfile untuk menjalankan Streamlit dan FastAPI
+# secara bersamaan menggunakan reverse proxy Nginx.
 # ==============================================================================
+
+# Gunakan image dasar Python Alpine yang efisien
 FROM python:alpine3.22
 
+# Set working directory di dalam kontainer
 WORKDIR /app
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Perbarui paket dan install Nginx, curl untuk health check
+RUN apk add --no-cache nginx curl
 
-# Copy requirements and install dependencies
+# Salin requirements.txt dan install semua dependensi Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
+# Salin semua file aplikasi, termasuk skrip startup dan konfigurasi Nginx
 COPY . .
 
-# Expose ports for both services
-EXPOSE 8501 8000
+# Beri izin eksekusi pada skrip startup
+RUN chmod +x ./startup.sh
 
-# Health check for Streamlit by default
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+# Salin konfigurasi Nginx ke lokasi yang benar
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# Default to Streamlit app
-ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Expose port 80 untuk Nginx sebagai satu-satunya titik masuk
+EXPOSE 80
+
+# Health check untuk FastAPI di port 8000 (lewat Nginx)
+HEALTHCHECK CMD curl --fail http://localhost/docs || exit 1
+
+# Jadikan skrip startup sebagai ENTRYPOINT
+# Skrip ini akan menjalankan Nginx, FastAPI, dan Streamlit
+ENTRYPOINT ["./startup.sh"]
