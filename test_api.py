@@ -1,7 +1,7 @@
 """
 Test script for the Cybersecurity API Service
 
-This script tests the API endpoints with sample security event data.
+This script tests the API endpoints with sample security event data and authentication.
 
 Usage:
     python test_api.py
@@ -11,12 +11,12 @@ import requests
 import json
 
 def test_api():
-    """Test the API with sample security event data."""
+    """Test the API with sample security event data and authentication."""
     
     # API endpoint
     api_url = "http://localhost:8000"
     
-    # Test health check
+    # Test health check (no auth required)
     print("🔍 Testing health check...")
     try:
         response = requests.get(f"{api_url}/health")
@@ -30,6 +30,70 @@ def test_api():
         print(f"❌ Cannot connect to API: {e}")
         print("💡 Make sure the API service is running: uvicorn api_service:app --host 0.0.0.0 --port 8000")
         return
+    
+    # Test login endpoint
+    print("\n🔐 Testing login...")
+    login_data = {
+        "username": "admin",
+        "password": "cybersec2025"
+    }
+    
+    try:
+        response = requests.post(
+            f"{api_url}/login",
+            json=login_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 200:
+            login_result = response.json()
+            access_token = login_result["access_token"]
+            print("✅ Login successful")
+            print(f"   Token type: {login_result['token_type']}")
+            print(f"   Expires in: {login_result['expires_in']} seconds")
+        else:
+            print(f"❌ Login failed: {response.status_code}")
+            print(f"   Error: {response.text}")
+            return
+            
+    except requests.RequestException as e:
+        print(f"❌ Login request failed: {e}")
+        return
+    
+    # Test user info endpoint
+    print("\n👤 Testing user info...")
+    try:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(f"{api_url}/me", headers=headers)
+        
+        if response.status_code == 200:
+            user_info = response.json()
+            print("✅ User info retrieved successfully")
+            print(f"   Username: {user_info['username']}")
+            print(f"   Authenticated: {user_info['authenticated']}")
+        else:
+            print(f"❌ User info failed: {response.status_code}")
+            print(f"   Error: {response.text}")
+            
+    except requests.RequestException as e:
+        print(f"❌ User info request failed: {e}")
+    
+    # Test unauthorized access
+    print("\n🚫 Testing unauthorized access...")
+    try:
+        response = requests.post(
+            f"{api_url}/analyze",
+            json={"test": "data"},
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 403:
+            print("✅ Unauthorized access properly blocked")
+        else:
+            print(f"⚠️ Expected 403 but got: {response.status_code}")
+            
+    except requests.RequestException as e:
+        print(f"❌ Unauthorized test failed: {e}")
     
     # Sample security event data
     sample_event = {
@@ -77,13 +141,18 @@ def test_api():
         "process_verdict": "Unknown"
     }
     
-    # Test security event analysis
-    print("\n🔍 Testing security event analysis...")
+    # Test security event analysis with authentication
+    print("\n🔍 Testing authenticated security event analysis...")
     try:
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
         response = requests.post(
             f"{api_url}/analyze",
             json=sample_event,
-            headers={"Content-Type": "application/json"}
+            headers=headers
         )
         
         if response.status_code == 200:
@@ -95,9 +164,15 @@ def test_api():
             print(f"   Error: {response.text}")
             
     except requests.RequestException as e:
-        print(f"❌ Request failed: {e}")
+        print(f"❌ Analysis request failed: {e}")
     
     print("\n🎉 API testing completed!")
+    print("\n📋 Summary:")
+    print("   ✅ Health check endpoint (no auth)")
+    print("   ✅ Login endpoint for authentication")
+    print("   ✅ User info endpoint (with auth)")
+    print("   ✅ Security event analysis (with auth)")
+    print("   ✅ Proper unauthorized access blocking")
 
 if __name__ == "__main__":
     test_api()

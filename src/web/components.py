@@ -319,6 +319,18 @@ def knowledge_base_tab(graph):
 
 def sidebar_components(graph):
     """Display the sidebar components."""
+    # User info and logout at the top of sidebar
+    from src.auth.auth import check_streamlit_auth, streamlit_logout
+    
+    if check_streamlit_auth():
+        username = st.session_state.get("username", "User")
+        st.sidebar.markdown("### 👤 User Session")
+        st.sidebar.markdown(f"**Welcome, {username}!**")
+        if st.sidebar.button("🚪 Logout", use_container_width=True):
+            streamlit_logout()
+            st.rerun()
+        st.sidebar.markdown("---")
+    
     st.sidebar.markdown("### 🛡️ Cybersecurity KB")
     st.sidebar.markdown("**Features:**")
     st.sidebar.markdown("• Chat with ATT&CK knowledge base")

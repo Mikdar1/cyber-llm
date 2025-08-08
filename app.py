@@ -22,6 +22,7 @@ from src.api.llm_service import get_llm
 from src.utils.initialization import initialize_knowledge_base
 from src.web.ui import get_css
 from src.web.components import chat_tab, knowledge_base_tab, sidebar_components
+from src.auth.auth import check_streamlit_auth, render_login_page, streamlit_logout
 
 
 def configure_page():
@@ -86,11 +87,16 @@ def main():
     # Configure page settings
     configure_page()
     
-    # Render header
-    render_header()
-    
     # Initialize session state
     initialize_session_state()
+    
+    # Check authentication
+    if not check_streamlit_auth():
+        render_login_page()
+        return
+    
+    # Render header (with logout button)
+    render_header()
     
     try:
         # Initialize core application components
