@@ -509,6 +509,332 @@ def get_attack_statistics(graph):
     except Exception as e:
         raise Exception(f"Error getting statistics: {e}")
 
+
+def get_multi_framework_statistics(graph):
+    """Get comprehensive statistics about all cybersecurity frameworks in the knowledge base."""
+    try:
+        stats = {}
+        
+        # MITRE ATT&CK Framework
+        attck_stats = {}
+        attck_stats['techniques'] = graph.query("MATCH (t:Technique) RETURN count(t) as count")[0]['count']
+        attck_stats['malware'] = graph.query("MATCH (m:Malware) RETURN count(m) as count")[0]['count']
+        attck_stats['threat_groups'] = graph.query("MATCH (g:ThreatGroup) RETURN count(g) as count")[0]['count']
+        attck_stats['tools'] = graph.query("MATCH (t:Tool) RETURN count(t) as count")[0]['count']
+        attck_stats['tactics'] = graph.query("MATCH (t:Tactic) RETURN count(t) as count")[0]['count']
+        attck_stats['mitigations'] = graph.query("MATCH (m:Mitigation) RETURN count(m) as count")[0]['count']
+        attck_stats['data_sources'] = graph.query("MATCH (ds:DataSource) RETURN count(ds) as count")[0]['count']
+        attck_stats['campaigns'] = graph.query("MATCH (c:Campaign) RETURN count(c) as count")[0]['count']
+        stats['MITRE_ATTCK'] = attck_stats
+        
+        # NIST Cybersecurity Framework
+        nist_stats = {}
+        nist_stats['functions'] = graph.query("MATCH (f:NIST_Function) RETURN count(f) as count")[0]['count']
+        nist_stats['categories'] = graph.query("MATCH (c:NIST_Category) RETURN count(c) as count")[0]['count']
+        nist_stats['subcategories'] = graph.query("MATCH (s:NIST_Subcategory) RETURN count(s) as count")[0]['count']
+        stats['NIST_CSF'] = nist_stats
+        
+        # CIS Controls
+        cis_stats = {}
+        cis_stats['controls'] = graph.query("MATCH (c:CIS_Control) RETURN count(c) as count")[0]['count']
+        cis_stats['safeguards'] = graph.query("MATCH (s:CIS_Safeguard) RETURN count(s) as count")[0]['count']
+        cis_stats['asset_types'] = graph.query("MATCH (a:CIS_AssetType) RETURN count(a) as count")[0]['count']
+        cis_stats['security_functions'] = graph.query("MATCH (sf:CIS_SecurityFunction) RETURN count(sf) as count")[0]['count']
+        stats['CIS_Controls'] = cis_stats
+        
+        # HIPAA Security
+        hipaa_stats = {}
+        hipaa_stats['regulations'] = graph.query("MATCH (r:HIPAA_Regulation) RETURN count(r) as count")[0]['count']
+        hipaa_stats['sections'] = graph.query("MATCH (s:HIPAA_Section) RETURN count(s) as count")[0]['count']
+        hipaa_stats['requirements'] = graph.query("MATCH (req:HIPAA_Requirement) RETURN count(req) as count")[0]['count']
+        stats['HIPAA'] = hipaa_stats
+        
+        # FFIEC IT Handbook
+        ffiec_stats = {}
+        ffiec_stats['domains'] = graph.query("MATCH (d:FFIEC_Domain) RETURN count(d) as count")[0]['count']
+        ffiec_stats['processes'] = graph.query("MATCH (p:FFIEC_Process) RETURN count(p) as count")[0]['count']
+        ffiec_stats['activities'] = graph.query("MATCH (a:FFIEC_Activity) RETURN count(a) as count")[0]['count']
+        stats['FFIEC'] = ffiec_stats
+        
+        # PCI DSS
+        pci_stats = {}
+        pci_stats['requirements'] = graph.query("MATCH (r:PCI_DSS_Requirement) RETURN count(r) as count")[0]['count']
+        pci_stats['sub_requirements'] = graph.query("MATCH (sr:PCI_DSS_SubRequirement) RETURN count(sr) as count")[0]['count']
+        pci_stats['testing_procedures'] = graph.query("MATCH (tp:PCI_DSS_TestingProcedure) RETURN count(tp) as count")[0]['count']
+        stats['PCI_DSS'] = pci_stats
+        
+        # Overall statistics
+        overall_stats = {}
+        overall_stats['total_nodes'] = graph.query("MATCH (n) RETURN count(n) as count")[0]['count']
+        overall_stats['total_relationships'] = graph.query("MATCH ()-[r]->() RETURN count(r) as count")[0]['count']
+        overall_stats['citations'] = graph.query("MATCH (c:Citation) RETURN count(c) as count")[0]['count']
+        stats['Overall'] = overall_stats
+        
+        return stats
+        
+    except Exception as e:
+        raise Exception(f"Error getting multi-framework statistics: {e}")
+
+
+def search_multi_framework_knowledge_base(graph, query):
+    """
+    Comprehensive search across all cybersecurity frameworks in the knowledge base.
+    
+    Searches through MITRE ATT&CK, NIST CSF, CIS Controls, HIPAA, FFIEC, and PCI DSS frameworks
+    to find relevant cybersecurity information based on the query.
+    
+    Args:
+        graph: Neo4j database connection instance
+        query (str): Search query string
+        
+    Returns:
+        str: Formatted search results from all frameworks
+    """
+    try:
+        query = query.lower()
+        context = []
+        
+        # MITRE ATT&CK Framework Search
+        # Search techniques
+        attck_technique_query = """
+        MATCH (t:Technique)
+        WHERE toLower(t.name) CONTAINS $query 
+           OR toLower(t.description) CONTAINS $query 
+           OR toLower(t.technique_id) CONTAINS $query
+        RETURN t.technique_id as id, t.name as name, t.description as description, t.tactics as tactics
+        LIMIT 5
+        """
+        attck_techniques = graph.query(attck_technique_query, params={"query": query})
+        
+        # Search threat groups
+        attck_groups_query = """
+        MATCH (g:ThreatGroup)
+        WHERE toLower(g.name) CONTAINS $query 
+           OR toLower(g.description) CONTAINS $query 
+           OR ANY(alias IN g.aliases WHERE toLower(alias) CONTAINS $query)
+        RETURN g.name as name, g.description as description, g.aliases as aliases
+        LIMIT 3
+        """
+        attck_groups = graph.query(attck_groups_query, params={"query": query})
+        
+        # Search malware
+        attck_malware_query = """
+        MATCH (m:Malware)
+        WHERE toLower(m.name) CONTAINS $query OR toLower(m.description) CONTAINS $query
+        RETURN m.name as name, m.description as description, m.labels as labels
+        LIMIT 3
+        """
+        attck_malware = graph.query(attck_malware_query, params={"query": query})
+        
+        # Search mitigations
+        attck_mitigations_query = """
+        MATCH (m:Mitigation)
+        WHERE toLower(m.name) CONTAINS $query 
+           OR toLower(m.description) CONTAINS $query 
+           OR toLower(m.mitigation_id) CONTAINS $query
+        RETURN m.mitigation_id as id, m.name as name, m.description as description
+        LIMIT 3
+        """
+        attck_mitigations = graph.query(attck_mitigations_query, params={"query": query})
+        
+        # NIST CSF Search
+        nist_functions_query = """
+        MATCH (f:NIST_Function)
+        WHERE toLower(f.name) CONTAINS $query OR toLower(f.description) CONTAINS $query
+        RETURN f.function_id as id, f.name as name, f.description as description
+        LIMIT 3
+        """
+        nist_functions = graph.query(nist_functions_query, params={"query": query})
+        
+        nist_categories_query = """
+        MATCH (c:NIST_Category)
+        WHERE toLower(c.name) CONTAINS $query OR toLower(c.description) CONTAINS $query
+        RETURN c.category_id as id, c.name as name, c.description as description
+        LIMIT 3
+        """
+        nist_categories = graph.query(nist_categories_query, params={"query": query})
+        
+        nist_subcategories_query = """
+        MATCH (s:NIST_Subcategory)
+        WHERE toLower(s.name) CONTAINS $query OR toLower(s.description) CONTAINS $query
+        RETURN s.subcategory_id as id, s.name as name, s.description as description
+        LIMIT 3
+        """
+        nist_subcategories = graph.query(nist_subcategories_query, params={"query": query})
+        
+        # CIS Controls Search
+        cis_controls_query = """
+        MATCH (c:CIS_Control)
+        WHERE toLower(c.title) CONTAINS $query OR toLower(c.description) CONTAINS $query
+        RETURN c.control_id as id, c.title as name, c.description as description
+        LIMIT 3
+        """
+        cis_controls = graph.query(cis_controls_query, params={"query": query})
+        
+        cis_safeguards_query = """
+        MATCH (s:CIS_Safeguard)
+        WHERE toLower(s.title) CONTAINS $query OR toLower(s.description) CONTAINS $query
+        RETURN s.safeguard_id as id, s.title as name, s.description as description
+        LIMIT 3
+        """
+        cis_safeguards = graph.query(cis_safeguards_query, params={"query": query})
+        
+        # HIPAA Search
+        hipaa_requirements_query = """
+        MATCH (r:HIPAA_Requirement)
+        WHERE toLower(r.title) CONTAINS $query OR toLower(r.description) CONTAINS $query
+        RETURN r.requirement_id as id, r.title as name, r.description as description
+        LIMIT 3
+        """
+        hipaa_requirements = graph.query(hipaa_requirements_query, params={"query": query})
+        
+        # FFIEC Search
+        ffiec_domains_query = """
+        MATCH (d:FFIEC_Domain)
+        WHERE toLower(d.name) CONTAINS $query OR toLower(d.description) CONTAINS $query
+        RETURN d.domain_id as id, d.name as name, d.description as description
+        LIMIT 3
+        """
+        ffiec_domains = graph.query(ffiec_domains_query, params={"query": query})
+        
+        ffiec_activities_query = """
+        MATCH (a:FFIEC_Activity)
+        WHERE toLower(a.name) CONTAINS $query OR toLower(a.description) CONTAINS $query
+        RETURN a.activity_id as id, a.name as name, a.description as description
+        LIMIT 3
+        """
+        ffiec_activities = graph.query(ffiec_activities_query, params={"query": query})
+        
+        # PCI DSS Search
+        pci_requirements_query = """
+        MATCH (r:PCI_DSS_Requirement)
+        WHERE toLower(r.title) CONTAINS $query OR toLower(r.description) CONTAINS $query
+        RETURN r.requirement_id as id, r.title as name, r.description as description
+        LIMIT 3
+        """
+        pci_requirements = graph.query(pci_requirements_query, params={"query": query})
+        
+        # Format results
+        if attck_techniques or attck_groups or attck_malware or attck_mitigations:
+            context.append("=== MITRE ATT&CK FRAMEWORK ===")
+            
+            if attck_techniques:
+                context.append("\n--- ATT&CK Techniques ---")
+                for result in attck_techniques:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  Tactics: {', '.join(result.get('tactics', []))}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if attck_groups:
+                context.append("\n--- Threat Groups ---")
+                for result in attck_groups:
+                    context.append(f"• {result['name']}")
+                    if result.get('aliases'):
+                        context.append(f"  Aliases: {', '.join(result['aliases'])}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if attck_malware:
+                context.append("\n--- Malware ---")
+                for result in attck_malware:
+                    context.append(f"• {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if attck_mitigations:
+                context.append("\n--- Mitigations ---")
+                for result in attck_mitigations:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+        
+        if nist_functions or nist_categories or nist_subcategories:
+            context.append("\n=== NIST CYBERSECURITY FRAMEWORK ===")
+            
+            if nist_functions:
+                context.append("\n--- Functions ---")
+                for result in nist_functions:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if nist_categories:
+                context.append("\n--- Categories ---")
+                for result in nist_categories:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if nist_subcategories:
+                context.append("\n--- Subcategories ---")
+                for result in nist_subcategories:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+        
+        if cis_controls or cis_safeguards:
+            context.append("\n=== CIS CONTROLS ===")
+            
+            if cis_controls:
+                context.append("\n--- Controls ---")
+                for result in cis_controls:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if cis_safeguards:
+                context.append("\n--- Safeguards ---")
+                for result in cis_safeguards:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+        
+        if hipaa_requirements:
+            context.append("\n=== HIPAA SECURITY ===")
+            context.append("\n--- Requirements ---")
+            for result in hipaa_requirements:
+                context.append(f"• {result['id']} - {result['name']}")
+                context.append(f"  {result['description'][:200]}...")
+        
+        if ffiec_domains or ffiec_activities:
+            context.append("\n=== FFIEC IT HANDBOOK ===")
+            
+            if ffiec_domains:
+                context.append("\n--- Domains ---")
+                for result in ffiec_domains:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+            
+            if ffiec_activities:
+                context.append("\n--- Activities ---")
+                for result in ffiec_activities:
+                    context.append(f"• {result['id']} - {result['name']}")
+                    context.append(f"  {result['description'][:200]}...")
+        
+        if pci_requirements:
+            context.append("\n=== PCI DSS ===")
+            context.append("\n--- Requirements ---")
+            for result in pci_requirements:
+                context.append(f"• {result['id']} - {result['name']}")
+                context.append(f"  {result['description'][:200]}...")
+        
+        if not context:
+            # If no specific results, try a broader search
+            broad_query = """
+            MATCH (n)
+            WHERE toLower(n.name) CONTAINS $query OR toLower(n.description) CONTAINS $query
+            RETURN labels(n) as type, n.name as name, 
+                   COALESCE(n.description, n.title, '') as description
+            LIMIT 10
+            """
+            broad_results = graph.query(broad_query, params={"query": query})
+            
+            if broad_results:
+                context.append("=== BROADER SEARCH RESULTS ===")
+                for result in broad_results:
+                    entity_type = result.get('type', ['Unknown'])[0] if result.get('type') else 'Unknown'
+                    context.append(f"\n{entity_type}: {result.get('name', 'N/A')}")
+                    if result.get('description'):
+                        context.append(f"  {result['description'][:200]}...")
+        
+        return "\n".join(context) if context else "No relevant information found across any cybersecurity frameworks."
+    
+    except Exception as e:
+        raise Exception(f"Error in multi-framework search: {e}")
+
+
 def get_techniques_by_tactic(graph, tactic_name=None):
     """Get techniques grouped by tactic."""
     try:
