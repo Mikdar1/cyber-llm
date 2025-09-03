@@ -2,6 +2,7 @@
 UI styles and components for the cybersecurity Streamlit application.
 """
 
+
 # --- Custom CSS styles for the application ---
 def get_css():
     """Return custom CSS for the cybersecurity application."""
@@ -96,55 +97,91 @@ def get_css():
         color: #374151 !important;
     }
     
-    /* Dark mode styles */
-    [data-theme="dark"] .main-header {
-        color: #FF6B6B;
-        border-bottom: 3px solid #333333;
+    /* Dark mode styles (robust): prefer media query to ensure matching) */
+    @media (prefers-color-scheme: dark) {
+        /* Override any light-mode .stMetric styles */
+        .stMetric {
+            background-color: #121212 !important;
+            border: 1px solid #333333 !important;
+        }
+        .stMetric > div,
+        .stMetric label,
+        .stMetric span,
+        .stMetric p {
+            color: #ffffff !important;
+        }
+        .main-header {
+            color: #FF6B6B;
+            border-bottom: 3px solid #333333;
+        }
+        .chat-container {
+            background-color: #2b2b2b;
+            color: #ffffff;
+        }
+        .kb-section, .cyber-section {
+            background-color: #1e1e1e;
+            border: 1px solid #404040;
+            color: #ffffff;
+        }
+        .assistant-message {
+            background-color: #404040;
+            color: #ffffff;
+        }
+        .info-box {
+            background-color: #3d1a1a;
+            color: #ffffff;
+            border-left: 4px solid #FF6B6B;
+        }
+        /* Ensure Streamlit metric cards have dark background and white text */
+        [data-testid="metric-container"] {
+            background-color: #121212 !important;
+            border: 1px solid #333333 !important;
+            color: #ffffff !important;
+            border-radius: 8px;
+        }
+        /* Label, value, and delta inside metrics */
+        [data-testid="stMetricLabel"],
+        [data-testid="stMetricDelta"],
+        [data-testid="stMetricValue"],
+        [data-testid="metric-container"] > div,
+        [data-testid="metric-container"] span,
+        [data-testid="metric-container"] p,
+        [data-testid="metric-container"] label {
+            color: #ffffff !important;
+        }
+        /* Force any nested text elements to white for contrast */
+        [data-testid="metric-container"] *:not(svg) {
+            color: #ffffff !important;
+            fill: #ffffff !important;
+        }
     }
-    [data-theme="dark"] .chat-container {
-        background-color: #2b2b2b;
-        color: #ffffff;
-    }
-    [data-theme="dark"] .kb-section {
-        background-color: #1e1e1e;
-        border: 1px solid #404040;
-        color: #ffffff;
-    }
-    [data-theme="dark"] .cyber-section {
-        background-color: #1e1e1e;
-        border: 1px solid #404040;
-        color: #ffffff;
-    }
-    [data-theme="dark"] .assistant-message {
-        background-color: #404040;
-        color: #ffffff;
-    }
-    [data-theme="dark"] .info-box {
-        background-color: #3d1a1a;
-        color: #ffffff;
-        border-left: 4px solid #FF6B6B;
+
+    /* Also support Streamlit's data-theme attribute for dark mode */
+    [data-theme="dark"] [data-testid="metric-container"] {
+        background-color: #121212 !important;
+        border: 1px solid #333333 !important;
+        color: #ffffff !important;
+        border-radius: 8px;
     }
     [data-theme="dark"] .stMetric {
-        background-color: #2d1e1e;
-        border: 1px solid #5d4040;
+        background-color: #121212 !important;
+        border: 1px solid #333333 !important;
     }
-    
-    [data-theme="dark"] .stMetric > div {
+    [data-theme="dark"] [data-testid="stMetricLabel"],
+    [data-theme="dark"] [data-testid="stMetricDelta"],
+    [data-theme="dark"] [data-testid="stMetricValue"],
+    [data-theme="dark"] [data-testid="metric-container"] > div,
+    [data-theme="dark"] [data-testid="metric-container"] span,
+    [data-theme="dark"] [data-testid="metric-container"] p,
+    [data-theme="dark"] [data-testid="metric-container"] label,
+    [data-theme="dark"] [data-testid="metric-container"] *:not(svg) {
         color: #ffffff !important;
+        fill: #ffffff !important;
     }
-    
-    [data-theme="dark"] .stMetric label {
-        color: #e5e7eb !important;
-    }
-    
-    /* Additional dark mode metric styling */
-    [data-theme="dark"] [data-testid="metric-container"] {
-        background-color: #2d1e1e !important;
-        border: 1px solid #5d4040 !important;
-        color: #ffffff !important;
-    }
-    
-    [data-theme="dark"] [data-testid="metric-container"] > div {
+    [data-theme="dark"] .stMetric > div,
+    [data-theme="dark"] .stMetric label,
+    [data-theme="dark"] .stMetric span,
+    [data-theme="dark"] .stMetric p {
         color: #ffffff !important;
     }
 </style>

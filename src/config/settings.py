@@ -24,6 +24,7 @@ Configuration Groups:
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -31,7 +32,7 @@ load_dotenv()
 
 # --- Neo4j Database Configuration ---
 NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME") 
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 # --- Google Gemini LLM Configuration ---
@@ -41,6 +42,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # --- Authentication Configuration ---
 APP_USERNAME = os.getenv("APP_USERNAME", "admin")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "cybersec2025")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_jwt_secret_key_change_this_in_production")
+JWT_SECRET_KEY = os.getenv(
+    "JWT_SECRET_KEY", "your_jwt_secret_key_change_this_in_production"
+)
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440")
+)

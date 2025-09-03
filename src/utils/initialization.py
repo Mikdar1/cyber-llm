@@ -1,312 +1,285 @@
 """
-Multi-Framework Knowledge Base Initialization and Setup Utilities Module
+ATT&CK Knowledge Base Initialization and Setup Utilities Module
 
-This module handles the initialization and setup of the comprehensive cybersecurity
-knowledge base in Neo4j, supporting multiple frameworks including MITRE ATT&CK,
-CIS Controls, NIST CSF, HIPAA, FFIEC, and PCI DSS. It manages data ingestion,
-validation, and ensures the database is properly populated with the latest
-framework data including complete citation tracking.
+This module handles the initialization and setup of the MITRE ATT&CK cybersecurity
+knowledge base in Neo4j. Compliance frameworks will be ingested on-demand through the document
+ingestion feature.
 
 Features:
-- Multi-framework automatic knowledge base initialization
-- STIX-based ATT&CK data ingestion
-- Document-based framework ingestion (CIS, NIST, HIPAA, FFIEC, PCI DSS)
+- MITRE ATT&CK automatic knowledge base initialization (enterprise and ICS domains)
+- STIX-based ATT&CK data ingestion from official repository
 - Data existence validation and incremental updates
 - Session state management
 - Progress tracking and user feedback
 - Error handling and recovery
-- Complete schema implementation with citations
-- Cross-framework relationship mapping
+- Schema implementation with citations
+- Document ingestion capability for compliance frameworks
 
 Functions:
-    initialize_knowledge_base: Main multi-framework initialization orchestrator
-    refresh_knowledge_base: Force refresh of all framework data
-    ingest_individual_framework: Single framework ingestion
+    initialize_knowledge_base: Main ATT&CK initialization orchestrator
+    setup_database_schema: Initialize database constraints and indexes
+    refresh_attack_data: Force refresh of ATT&CK data
 """
 
+import json
+import os
+from datetime import datetime
+from typing import Any, Dict
+
 import streamlit as st
+
 from src.cybersecurity.attack_ingestion import AttackIngestion
-from src.cybersecurity.cis_ingestion import CISIngestion
-from src.cybersecurity.nist_ingestion import NISTIngestion
-from src.cybersecurity.hipaa_ingestion import HIPAAIngestion
-from src.cybersecurity.ffiec_ingestion import FFIECIngestion
-from src.cybersecurity.pci_dss_ingestion import PCIDSSIngestion
-from src.knowledge_base.database import clear_knowledge_base
+
+
+def setup_database_schema(graph):
+    """
+    Set up database schema constraints and indexes according to unified schema.
+
+    Args:
+        graph: Neo4j database connection instance
+    """
+    try:
+        # Load schema configuration
+        schema_file = "src/config/schema.json"
+        if os.path.exists(schema_file):
+            with open(schema_file, "r") as f:
+                schema_config = json.load(f)
+        else:
+            st.warning("Schema configuration file not found. Using default schema.")
+            return
+
+        # Create constraints
+        constraints = schema_config.get("constraints", [])
+        for constraint in constraints:
+            try:
+                graph.query(constraint)
+            except Exception as e:
+                st.warning(f"Constraint already exists or failed: {e}")
+
+        # Create indexes
+        indexes = schema_config.get("indexes", [])
+        for index in indexes:
+            try:
+                graph.query(index)
+            except Exception as e:
+                st.warning(f"Index already exists or failed: {e}")
+
+        st.success("✅ Database schema setup completed")
+
+    except Exception as e:
+        st.error(f"Error setting up database schema: {e}")
 
 
 def initialize_knowledge_base(graph):
     """
-    Initialize the comprehensive cybersecurity knowledge base with multi-framework support.
-    
-    Checks for existing data and performs initialization for all supported frameworks
-    when necessary. Manages session state to prevent redundant initialization attempts
-    and provides detailed progress feedback to users.
-    
-    Supported Frameworks:
-    - MITRE ATT&CK (STIX-based ingestion)
-    - CIS Controls v8.1
-    - NIST Cybersecurity Framework 2.0
-    - HIPAA Administrative Simplification
-    - FFIEC IT Examination Handbook
-    - PCI DSS v4.0.1
-    
-    Args:
-        graph: Neo4j database connection instance
+        Initialize the MITRE ATT&CK knowledge base.
+
+        Checks for existing data and performs initialization for ATT&CK framework
+        when necessary. Other compliance frameworks will be ingested on-demand
+        through the document ingestion feature.
+
+        Supported Initial Framework:
+        - MITRE ATT&CK (STIX-based ingestion from official repository)
+
+        Future frameworks (document-based ingestion):
+        🔄 **Available for Document Upload:**
+        - Any compliance or regulatory framework document
+        - Security standards and guidelines
+        - Industry-specific regulations
+
+    🎯 **Framework Support:**
+        The system supports any compliance framework through document upload.
+
+        Args:
+            graph: Neo4j database connection instance
     """
     # Skip if already initialized in current session
     if st.session_state.knowledge_base_initialized:
         return
-    
-    with st.spinner("🔄 Initializing comprehensive cybersecurity knowledge base..."):
+
+    with st.spinner("🔄 Initializing MITRE ATT&CK knowledge base..."):
         try:
+            # Setup database schema first
+            setup_database_schema(graph)
+
             # Validate existing data in Neo4j database
             check_query = "MATCH (n) RETURN count(n) as count"
             result = graph.query(check_query)
-            existing_count = result[0]['count'] if result else 0
-            
+            existing_count = result[0]["count"] if result else 0
+
             if existing_count > 0:
-                st.info(f"📊 Knowledge base already contains {existing_count:,} nodes. Skipping initialization.")
+                st.info(
+                    f"📊 Knowledge base already contains {existing_count:,} nodes. Skipping initialization."
+                )
                 st.session_state.knowledge_base_initialized = True
                 return
-            
-            # Initialize framework ingestion systems
-            st.info("🚀 Starting comprehensive multi-framework data ingestion...")
-            
-            total_stats = {}
-            success_count = 0
-            total_frameworks = 6
-            
-            # 1. ATT&CK Framework (STIX-based)
+
+            # Initialize ATT&CK framework ingestion
+            st.info("🚀 Starting MITRE ATT&CK data ingestion...")
+
+            # ATT&CK Framework (STIX-based) - Enterprise and ICS domains
             st.info("📡 Ingesting MITRE ATT&CK framework...")
             attack_ingester = AttackIngestion()
-            domains = ['enterprise']  # Can be expanded to include mobile, ics
+            domains = ["enterprise", "ics"]  # Enterprise and ICS domains
             attack_stats = attack_ingester.run_full_ingestion(graph, domains)
-            total_stats['ATT&CK'] = attack_stats
-            success_count += 1
+
+            # Update ingestion status
+            update_ingestion_status("attack", attack_stats)
+
+            # Display completion summary
+            st.success("🎉 ATT&CK Knowledge Base Initialization Complete!")
+            st.info(
+                """
+            📋 **Initialization Summary:**
+            - ✅ MITRE ATT&CK: Enterprise and ICS domains
+            - 📄 Compliance frameworks: Available for document-based ingestion
             
-            # 2. CIS Controls v8.1
-            st.info("🛡️ Ingesting CIS Controls v8.1...")
-            cis_ingester = CISIngestion()
-            cis_success, cis_msg = cis_ingester.ingest_cis_data(graph)
-            if cis_success:
-                total_stats['CIS'] = cis_ingester.ingestion_stats
-                success_count += 1
-            else:
-                st.warning(f"CIS Controls ingestion: {cis_msg}")
-            
-            # 3. NIST Cybersecurity Framework 2.0
-            st.info("📋 Ingesting NIST Cybersecurity Framework 2.0...")
-            nist_ingester = NISTIngestion()
-            nist_success, nist_msg = nist_ingester.ingest_nist_data(graph)
-            if nist_success:
-                total_stats['NIST'] = nist_ingester.ingestion_stats
-                success_count += 1
-            else:
-                st.warning(f"NIST CSF ingestion: {nist_msg}")
-            
-            # 4. HIPAA Administrative Simplification
-            st.info("🏥 Ingesting HIPAA regulatory framework...")
-            hipaa_ingester = HIPAAIngestion()
-            hipaa_success, hipaa_msg = hipaa_ingester.ingest_hipaa_data(graph)
-            if hipaa_success:
-                total_stats['HIPAA'] = hipaa_ingester.ingestion_stats
-                success_count += 1
-            else:
-                st.warning(f"HIPAA ingestion: {hipaa_msg}")
-            
-            # 5. FFIEC IT Examination Handbook
-            st.info("🏦 Ingesting FFIEC examination procedures...")
-            ffiec_ingester = FFIECIngestion()
-            ffiec_success, ffiec_msg = ffiec_ingester.ingest_ffiec_data(graph)
-            if ffiec_success:
-                total_stats['FFIEC'] = ffiec_ingester.ingestion_stats
-                success_count += 1
-            else:
-                st.warning(f"FFIEC ingestion: {ffiec_msg}")
-            
-            # 6. PCI DSS v4.0.1
-            st.info("💳 Ingesting PCI DSS security standards...")
-            pci_ingester = PCIDSSIngestion()
-            pci_success, pci_msg = pci_ingester.ingest_pci_dss_data(graph)
-            if pci_success:
-                total_stats['PCI DSS'] = pci_ingester.ingestion_stats
-                success_count += 1
-            else:
-                st.warning(f"PCI DSS ingestion: {pci_msg}")
-            
-            # Display comprehensive results
-            st.success(f"✅ Successfully initialized {success_count}/{total_frameworks} cybersecurity frameworks!")
-            
-            # Show detailed breakdown
-            with st.expander("📊 Multi-Framework Ingestion Details"):
-                for framework, stats in total_stats.items():
-                    st.markdown(f"### {framework}")
-                    if isinstance(stats, dict):
-                        for stat_name, count in stats.items():
-                            if count > 0:
-                                st.write(f"- **{stat_name.replace('_', ' ').title()}**: {count:,}")
-                    else:
-                        st.write(f"- **Framework Status**: {stats}")
-            
-            # Create cross-framework relationships
-            if success_count >= 2:
-                st.info("🔗 Creating cross-framework relationships...")
-                _create_cross_framework_relationships(graph)
-            
+            **Next Steps:**
+            - Use the document ingestion feature to add compliance frameworks
+            - Upload PDF documents for any compliance or regulatory framework
+            """
+            )
+
             st.session_state.knowledge_base_initialized = True
-            st.balloons()  # Celebrate successful initialization
-                
+
         except Exception as e:
-            st.error(f"❌ Error during knowledge base initialization: {str(e)}")
-            st.info("💡 Please check your Neo4j connection and document availability, then try again.")
+            st.error(f"❌ Knowledge base initialization failed: {str(e)}")
+            st.info("💡 You can still use the application with limited functionality.")
 
 
-def _create_cross_framework_relationships(graph):
+def update_ingestion_status(framework: str, stats: Dict[str, Any]):
     """
-    Create relationships between different cybersecurity frameworks.
-    
-    This function establishes connections between:
-    - ATT&CK techniques and CIS Controls
-    - NIST CSF categories and CIS Controls  
-    - Regulatory requirements and framework controls
-    
+    Update the ingestion status tracking file.
+
     Args:
-        graph: Neo4j database connection instance
+        framework: Framework name (e.g., 'attack')
+        stats: Ingestion statistics
     """
     try:
-        # Link ATT&CK techniques to CIS Controls (example relationships)
-        graph.query("""
-            MATCH (t:Technique)
-            WHERE t.name CONTAINS 'Network' OR t.name CONTAINS 'Access'
-            MATCH (c:CIS_Control {id: '1'})
-            MERGE (t)-[:MITIGATED_BY]->(c)
-        """)
-        
-        # Link NIST CSF categories to appropriate controls
-        graph.query("""
-            MATCH (cat:NIST_Category)
-            WHERE cat.id STARTS WITH 'PR.AC'
-            MATCH (c:CIS_Control {id: '5'})
-            MERGE (cat)-[:IMPLEMENTED_BY]->(c)
-        """)
-        
-        # Link regulatory requirements to framework functions
-        graph.query("""
-            MATCH (r:HIPAA_Regulation)
-            WHERE r.title CONTAINS 'Security'
-            MATCH (f:NIST_Function {id: 'PR'})
-            MERGE (r)-[:ADDRESSES_FUNCTION]->(f)
-        """)
-        
-        st.success("✅ Cross-framework relationships created successfully!")
-        
-    except Exception as e:
-        st.warning(f"⚠️ Cross-framework relationship creation encountered issues: {str(e)}")
+        status_file = "src/config/ingestion_status.json"
 
-
-def refresh_knowledge_base(graph):
-    """
-    Force refresh of the comprehensive cybersecurity knowledge base with latest data.
-    
-    Clears existing data and performs complete re-ingestion of all supported
-    cybersecurity frameworks. Use when data updates are needed across all frameworks.
-    
-    Args:
-        graph: Neo4j database connection instance
-        
-    Returns:
-        tuple: (success_boolean, status_message)
-    """
-    try:
-        with st.spinner("🗑️ Clearing existing knowledge base..."):
-            clear_knowledge_base(graph)
-            
-        with st.spinner("🔄 Ingesting latest multi-framework data..."):
-            # Reset session state for fresh initialization
-            st.session_state.knowledge_base_initialized = False
-            
-            # Perform complete multi-framework initialization
-            initialize_knowledge_base(graph)
-            
-            return True, "Successfully refreshed comprehensive cybersecurity knowledge base with all frameworks"
-                
-    except Exception as e:
-        return False, f"Error during knowledge base refresh: {str(e)}"
-
-
-def ingest_individual_framework(graph, framework_name: str):
-    """
-    Ingest data for a specific cybersecurity framework.
-    
-    Allows selective ingestion of individual frameworks without affecting
-    the rest of the knowledge base.
-    
-    Args:
-        graph: Neo4j database connection instance
-        framework_name: Name of framework to ingest ('attack', 'cis', 'nist', 'hipaa', 'ffiec', 'pci_dss')
-        
-    Returns:
-        tuple: (success_boolean, status_message)
-    """
-    try:
-        framework_name = framework_name.lower()
-        
-        if framework_name == 'attack':
-            ingester = AttackIngestion()
-            stats = ingester.run_full_ingestion(graph, ['enterprise'])
-            return True, f"ATT&CK ingestion completed: {stats}"
-            
-        elif framework_name == 'cis':
-            ingester = CISIngestion()
-            return ingester.ingest_cis_data(graph)
-            
-        elif framework_name == 'nist':
-            ingester = NISTIngestion()
-            return ingester.ingest_nist_data(graph)
-            
-        elif framework_name == 'hipaa':
-            ingester = HIPAAIngestion()
-            return ingester.ingest_hipaa_data(graph)
-            
-        elif framework_name == 'ffiec':
-            ingester = FFIECIngestion()
-            return ingester.ingest_ffiec_data(graph)
-            
-        elif framework_name == 'pci_dss':
-            ingester = PCIDSSIngestion()
-            return ingester.ingest_pci_dss_data(graph)
-            
+        # Read current status
+        if os.path.exists(status_file):
+            with open(status_file, "r") as f:
+                status_data = json.load(f)
         else:
-            return False, f"Unknown framework: {framework_name}. Supported: attack, cis, nist, hipaa, ffiec, pci_dss"
-            
+            status_data = {
+                "ingested_documents": [],
+                "ingested_frameworks": {},
+                "total_nodes": 0,
+                "last_updated": None,
+            }
+
+        # Update framework status
+        if framework not in status_data["ingested_frameworks"]:
+            status_data["ingested_frameworks"][framework] = {
+                "status": "not_ingested",
+                "domains": [],
+                "last_updated": None,
+                "node_counts": {},
+            }
+
+        # Update ATT&CK specific data
+        if framework == "attack":
+            status_data["ingested_frameworks"][framework].update(
+                {
+                    "status": "ingested",
+                    "domains": stats.get("domains", []),
+                    "last_updated": datetime.now().isoformat(),
+                    "node_counts": {
+                        "techniques": stats.get("techniques", 0),
+                        "tactics": stats.get("tactics", 0),
+                        "groups": stats.get("groups", 0),
+                        "software": stats.get("software", 0),
+                        "mitigations": stats.get("mitigations", 0),
+                        "data_sources": stats.get("data_sources", 0),
+                    },
+                }
+            )
+
+        # Update totals
+        total_nodes = (
+            sum(stats.get("node_counts", {}).values())
+            if "node_counts" in stats
+            else sum(stats.values())
+        )
+        status_data["total_nodes"] = total_nodes
+        status_data["last_updated"] = datetime.now().isoformat()
+
+        # Write updated status
+        with open(status_file, "w") as f:
+            json.dump(status_data, f, indent=2)
+
     except Exception as e:
-        return False, f"Error during {framework_name} ingestion: {str(e)}"
+        st.error(f"Error updating ingestion status: {e}")
 
 
-def reingest_attack_data(graph):
+def refresh_attack_data(graph):
     """
-    Legacy function for re-ingesting ATT&CK data.
-    
-    Provides backward compatibility for existing code that uses
-    the older reingest function name. Delegates to refresh_knowledge_base.
-    
+    Force refresh of ATT&CK framework data using MERGE operations.
+    This is safe to run multiple times as it uses MERGE operations
+    to avoid duplicate constraint violations.
+
     Args:
         graph: Neo4j database connection instance
-        
-    Returns:
-        bool: Success status of re-ingestion operation
+    """
+    with st.spinner("🔄 Refreshing ATT&CK data..."):
+        try:
+            # Use MERGE-based ingestion for safe refresh
+            attack_ingester = AttackIngestion()
+            domains = ["enterprise", "ics"]
+            success, message = attack_ingester.ingest_attack_data(
+                graph, domains, clear_existing=False
+            )
+
+            if success:
+                st.success(f"✅ ATT&CK data refreshed: {message}")
+            else:
+                st.error(f"❌ ATT&CK refresh failed: {message}")
+
+        except Exception as e:
+            st.error(f"Error refreshing ATT&CK data: {e}")
+
+
+def clear_attack_data(graph):
+    """
+    Clear ATT&CK specific data from the database using the AttackIngestion class method.
+
+    Args:
+        graph: Neo4j database connection instance
     """
     try:
-        # Use the updated refresh function for consistency
-        success, message = refresh_knowledge_base(graph)
-        
-        if success:
-            st.success(f"✅ {message}")
-            return True
-        else:
-            st.error(f"❌ {message}")
-            return False
-            
+        # Use the AttackIngestion class method for clearing data
+        attack_ingester = AttackIngestion()
+        attack_ingester.clear_attack_data(graph)
+        st.info("🗑️ ATT&CK data cleared from database")
+
     except Exception as e:
-        st.error(f"❌ Error during data re-ingestion: {str(e)}")
-        return False
+        st.error(f"Error clearing ATT&CK data: {e}")
+
+
+def get_ingestion_status() -> Dict[str, Any]:
+    """
+    Get current ingestion status.
+
+    Returns:
+        Dictionary containing ingestion status information
+    """
+    try:
+        status_file = "src/config/ingestion_status.json"
+        if os.path.exists(status_file):
+            with open(status_file, "r") as f:
+                return json.load(f)
+        return {
+            "ingested_documents": [],
+            "ingested_frameworks": {},
+            "total_nodes": 0,
+            "last_updated": None,
+        }
+    except Exception:
+        return {
+            "ingested_documents": [],
+            "ingested_frameworks": {},
+            "total_nodes": 0,
+            "last_updated": None,
+        }
