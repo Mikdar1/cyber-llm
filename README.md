@@ -1,202 +1,415 @@
-# 🛡️ Cybersecurity Multi-Framework Assistant
+# 🛡️ Cybersecurity Framework Assistant
 
-A comprehensive cybersecurity platform that provides both an interactive chat interface and a REST API for threat intelligence analysis across multiple cybersecurity frameworks.
+A comprehensive, AI-powered cybersecurity platform that unifies threat intelligence with compliance frameworks through an intelligent knowledge graph. The system provides both interactive chat interfaces and REST API services for advanced cybersecurity analysis and decision-making.
 
-## 🚀 Features
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
+[![Neo4j](https://img.shields.io/badge/Neo4j-5.0+-yellow.svg)](https://neo4j.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-### 🎯 Multi-Framework Support
+## 🚀 Key Features
 
-- **MITRE ATT&CK**: Threat tactics, techniques, and procedures
-- **CIS Controls v8.1**: Critical security controls and safeguards
-- **NIST Cybersecurity Framework 2.0**: Core functions and categories
-- **HIPAA Administrative Simplification**: Healthcare regulatory compliance
-- **FFIEC IT Handbook**: Financial institution examination procedures
-- **PCI DSS v4.0.1**: Payment card industry security standards
+### 🎯 **Unified Knowledge Graph**
 
-### 🤖 Intelligence Capabilities
+- **MITRE ATT&CK Framework**: Complete enterprise and ICS threat landscape with 1000+ techniques
+- **Compliance Processing**: Intelligent document analysis for any compliance standard
+- **Cross-Framework Intelligence**: Direct mappings between compliance controls and ATT&CK techniques
+- **Real-time Knowledge Synthesis**: Dynamic relationships and correlation discovery
 
-- **Interactive Chat Interface**: Ask questions across all supported frameworks
-- **REST API Service**: Automated security event analysis and response recommendations
-- **Cross-Framework Analysis**: Explore relationships between different standards
-- **Threat Intelligence**: Real-time threat analysis and risk assessment
-- **Citation Tracking**: Complete source attribution for all framework elements
+### 🤖 **Advanced Processing**
 
-### 🏗️ Technical Architecture
+- **Smart Document Ingestion**: LLM-based extraction from compliance PDFs with auto-detection
+- **Intelligent Framework Recognition**: Automatic identification of framework types and industries
+- **Contextual Query Analysis**: Natural language understanding for cybersecurity questions
+- **Adaptive Response Generation**: Framework-aware responses with cross-referencing
 
-- **Neo4j Graph Database**: Complex relationship modeling across frameworks
-- **AI-Powered Responses**: Google Gemini LLM for intelligent cybersecurity insights
-- **FastAPI REST Service**: High-performance API for security event analysis
-- **Streamlit Chat Interface**: Interactive web-based exploration
-- **Document Processing**: PDF parsing and structured data extraction
-- **JWT Authentication**: Secure token-based authentication for both chat and API services
-- **Session Management**: Streamlit session state handling for user authentication
-- **Environment Configuration**: Configurable credentials and API keys via environment variables
+### 🏗️ **Production-Ready Architecture**
 
-## 📋 Prerequisites
+- **Neo4j Graph Database**: Scalable graph storage with optimized queries and indexing
+- **Google Gemini Integration**: Advanced LLM capabilities for document understanding
+- **FastAPI REST Services**: High-performance API with automatic documentation
+- **Streamlit Web Interface**: Intuitive UI with real-time statistics and management
+- **JWT Authentication**: Secure access control for both web and API interfaces
 
-- Python 3.8+
-- Neo4j Database (local or cloud instance)
-- Google Gemini API key
-- Internet connection for framework data fetching
-- Framework documents (PDF files in `documents/` folder)
+### 📊 **Comprehensive Framework Support**
 
-## 🛠️ Installation
+#### Pre-loaded Intelligence
 
-1. **Clone the repository**:
+- ✅ **MITRE ATT&CK Enterprise**: Complete enterprise threat landscape (tactics, techniques, groups, software)
+- ✅ **MITRE ATT&CK ICS**: Industrial control systems security framework
 
-   ```bash
-   git clone <repository-url>
-   cd cybersecurity-multi-framework-assistant
-   ```
+#### Processed Compliance Frameworks
 
-2. **Install dependencies**:
+- 🏥 **HIPAA**: Healthcare compliance and privacy protection requirements
+- 💳 **PCI-DSS**: Payment card industry data security standards
+- 🏛️ **NIST Cybersecurity Framework**: National cybersecurity guidelines
+- 🔒 **CIS Controls**: Critical security controls implementation guide
+- 📋 **ISO 27001**: Information security management standards
+- 🔐 **SOC 2**: Service organization control requirements
+- 🇺🇸 **FedRAMP**: Federal cloud security authorization
+- 📄 **Custom Frameworks**: Upload any compliance document for processing
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 🛠️ Installation & Setup
 
-3. **Set up environment variables**:
-   Copy `.env.example` to `.env` and configure:
+### Prerequisites
 
-   ```env
-   # Core Configuration
-   GEMINI_API_KEY=your_gemini_api_key_here
-   MODEL_NAME=gemini-2.5-flash-preview-05-20
-   NEO4J_URI=your_neo4j_uri_here
-   NEO4J_USERNAME=your_neo4j_username
-   NEO4J_PASSWORD=your_neo4j_password
-   NEO4J_DATABASE=neo4j
+- **Python 3.8+** with pip package manager
+- **Neo4j Database** (Community or Enterprise Edition)
+- **Google Gemini API Key** for LLM functionality
+- **Git** for repository cloning
 
-   # Authentication Settings
-   APP_USERNAME=admin
-   APP_PASSWORD=cybersec2025
-   JWT_SECRET_KEY=your_jwt_secret_key_change_this_in_production
-   JWT_ALGORITHM=HS256
-   JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
-   ```
-
-4. **Add framework documents**:
-   Place the following PDF documents in the `documents/` folder:
-
-   - `CIS_Controls__v8.1_Guide__2024_06.pdf`
-   - `NIST.CSWP.29.pdf`
-   - `hipaa-simplification-201303.pdf`
-   - `2016- it-handbook-information-security-booklet.pdf`
-   - `PCI-DSS-v4_0_1.pdf`
-
-5. **Run the chat application**:
-
-   ```bash
-   streamlit run app.py
-   ```
-
-6. **Run the API service** (optional):
-
-   ```bash
-   # Using uvicorn directly (if installed globally)
-   uvicorn api_service:app --host 0.0.0.0 --port 8000
-
-   # Or using Python module (recommended)
-   python -m uvicorn api_service:app --host 0.0.0.0 --port 8000
-   ```
-
-The chat interface will be available at `http://localhost:8501` and the API at `http://localhost:8000`.
-
-## 🐳 Docker Deployment
-
-### Chat Application
-
-1. **Build the Docker image**:
-
-   ```bash
-   docker build -t cybersecurity-platform .
-   ```
-
-2. **Run the chat application**:
-   ```bash
-   docker run -p 8501:8501 --env-file .env cybersecurity-platform
-   ```
-
-### API Service
-
-1. **Run the API service**:
-   ```bash
-   docker run -p 8000:8000 --env-file .env cybersecurity-platform uvicorn api_service:app --host 0.0.0.0 --port 8000
-   ```
-
-### Multi-Service Deployment
-
-Use Docker Compose to run both services:
-
-```yaml
-# docker-compose.yml
-version: "3.8"
-services:
-  chat-app:
-    build: .
-    ports:
-      - "8501:8501"
-    env_file: .env
-
-  api-service:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file: .env
-    command: uvicorn api_service:app --host 0.0.0.0 --port 8000
-```
-
-Run with: `docker-compose up`
-
-## 💡 Usage
-
-### 🔐 Authentication
-
-Both the Streamlit chat application and FastAPI service require authentication:
-
-**Default Credentials:**
-
-- **Username**: `admin`
-- **Password**: `cybersec2025`
-
-> ⚠️ **Important**: Change these credentials in production by updating the environment variables.
-
-### 🤖 REST API Service
-
-The API provides automated security event analysis for integration with security tools.
-
-#### Authentication
-
-**1. Get Access Token:**
+### 1. Clone Repository
 
 ```bash
-curl -X POST "http://localhost:8000/login" \
-     -H "Content-Type: application/json" \
-     -d '{"username": "admin", "password": "cybersec2025"}'
+git clone https://github.com/your-username/cyber-llm.git
+cd cyber-llm
 ```
 
-**Response:**
+### 2. Install Dependencies
+
+```bash
+# Create virtual environment
+python -m venv cyber_env
+source cyber_env/bin/activate  # On Windows: cyber_env\Scripts\activate
+
+# Install required packages
+pip install -r requirements.txt
+```
+
+### 3. Environment Configuration
+
+Create a `.env` file in the project root:
+
+```env
+# Neo4j Database Configuration
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_neo4j_password
+
+# Google Gemini API Configuration
+GEMINI_API_KEY=your_gemini_api_key
+MODEL_NAME=gemini-1.5-flash
+
+# Authentication Configuration
+JWT_SECRET_KEY=your_jwt_secret_key
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_HOURS=24
+
+# Application Configuration
+USERNAME=admin
+PASSWORD=secure_password
+```
+
+### 4. Neo4j Database Setup
+
+```bash
+# Install Neo4j Desktop or use Docker
+docker run -d \
+  --name neo4j \
+  -p 7474:7474 -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/your_password \
+  neo4j:latest
+
+# Or start local Neo4j instance
+neo4j start
+```
+
+### 5. Initialize Knowledge Base
+
+```bash
+# Start the application to auto-initialize ATT&CK data
+streamlit run app.py
+```
+
+## 🎮 Usage Guide
+
+### Web Interface (Streamlit)
+
+```bash
+streamlit run app.py
+```
+
+**Features:**
+
+- **💬 Interactive Chat**: Natural language queries about threats and compliance
+- **📊 Knowledge Base Statistics**: Real-time framework metrics and node counts
+- **🔍 Advanced Search**: Multi-criteria search across all frameworks
+- **⚙️ Document Management**: Upload and process compliance documents
+- **🛡️ Framework List**: View ingested frameworks and their status
+- **⚡ Quick Actions**: Reset knowledge base and logout functionality
+
+### REST API Service (FastAPI)
+
+```bash
+uvicorn api_service:app --host 0.0.0.0 --port 8000
+```
+
+**Endpoints:**
+
+- POST `/login` – Authenticate and obtain JWT token
+- POST `/analyze` – Analyze security events
+- GET `/health` – Service health check
+- GET `/docs` – Interactive API documentation (Swagger UI)
+
+### Run with Docker
+
+```bash
+docker build -t cyber-llm .
+docker run -p 8000:8000 -p 8501:8501 --env-file .env cyber-llm
+```
+
+Or using Compose:
+
+```bash
+docker compose up --build
+```
+
+## 📈 AI Processing Capabilities
+
+### Intelligent Document Analysis
+
+The system uses advanced LLM techniques to extract structured information from compliance documents:
+
+**Automated Extraction:**
+
+- **Regulatory Bodies**: Identifying publishing organizations and authorities
+- **Framework Metadata**: Versions, publication dates, scope, and applicability
+- **Control Structures**: Individual requirements with implementation guidance
+- **Industry Classifications**: Target sectors and regulatory environments
+- **Threat Correlations**: Mapping controls to relevant ATT&CK techniques
+
+**Example Processing Output:**
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
+  "regulatory_body": {
+    "name": "Department of Health and Human Services",
+    "description": "Federal agency responsible for HIPAA enforcement"
+  },
+  "framework": {
+    "name": "Health Insurance Portability and Accountability Act",
+    "version": "Administrative Simplification Rules 2013"
+  },
+  "controls": [
+    {
+      "control_id": "§164.308(a)(1)",
+      "name": "Security Officer Assignment",
+      "description": "Assign responsibility for security functions",
+      "potential_attack_techniques": ["T1078.001", "T1098.001"],
+      "implementation_guidance": "Designate a security officer responsible for developing and implementing security policies"
+    }
+  ]
 }
 ```
 
-**2. Use Token in Requests:**
+## 🔍 Query Examples & Use Cases
 
-```bash
-TOKEN="your_jwt_token_here"
-curl -X POST "http://localhost:8000/analyze" \
-     -H "Authorization: Bearer $TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{...event_data...}'
+### Cross-Framework Intelligence Queries
+
+```
+"What HIPAA controls help mitigate credential access techniques?"
+"Show me PCI-DSS requirements related to T1055 Process Injection"
+"Which compliance frameworks address privilege escalation attacks?"
+"Map ISO 27001 controls to lateral movement techniques"
 ```
 
-#### Endpoint: `POST /analyze` (Authentication Required)
+### Threat Analysis Questions
 
-**Event Data Format:**
+```
+"Explain the ATT&CK technique T1566.001 Spearphishing Attachment"
+"What techniques does APT29 commonly use for initial access?"
+"Show me mitigations for T1059 Command and Scripting Interpreter"
+"List all techniques in the Defense Evasion tactic"
+```
+
+### Compliance Guidance Requests
+
+```
+"What are the key requirements for data encryption in healthcare?"
+"How should financial institutions implement access controls?"
+"What monitoring capabilities are required for cloud compliance?"
+"Explain the differences between SOC 2 Type I and Type II"
+```
+
+## 🏗️ System Architecture
+
+### Core Components
+
+```
+├── Frontend Layer (Streamlit)
+│   ├── Interactive Chat Interface
+│   ├── Knowledge Base Management
+│   ├── Real-time Statistics Dashboard
+│   └── Document Processing Interface
+├── API Layer (FastAPI)
+│   ├── Security Event Analysis
+│   ├── JWT Authentication Service
+│   ├── RESTful Endpoints
+│   └── Interactive Documentation
+├── AI Processing Engine
+│   ├── Google Gemini Integration
+│   ├── Document Understanding
+│   ├── Structured Data Extraction
+│   └── Cross-framework Correlation
+├── Graph Database (Neo4j)
+│   ├── ATT&CK Data Model
+│   ├── Compliance Schema
+│   ├── Relationship Management
+│   └── Performance Optimization
+└── Data Ingestion Pipeline
+    ├── ATT&CK STIX Processing
+    ├── Smart PDF Analysis
+    ├── Schema Validation
+    └── Automated Mapping
+```
+
+### Data Flow Architecture
+
+1. **📄 Document Upload** → Secure file handling and validation
+2. **🤖 LLM Analysis** → Framework detection and content extraction
+3. **🏗️ Node Creation** → Structured data transformation
+4. **🔗 Relationship Building** → Cross-framework correlation mapping
+5. **🎯 Query Processing** → Intelligent response generation
+
+## 📊 Performance & Scalability
+
+### Database Optimization
+
+- **Indexed Properties**: Optimized for fast text and property searches
+- **Unique Constraints**: Data integrity enforcement and duplicate prevention
+- **Relationship Indexing**: Fast traversal for complex graph queries
+- **Query Optimization**: Efficient Cypher patterns for large datasets
+
+### Processing Efficiency
+
+- **Asynchronous Operations**: Non-blocking document processing
+- **Caching Strategies**: Statistics and query result caching
+- **Batch Processing**: Efficient handling of large document sets
+- **Error Recovery**: Graceful handling of processing failures
+
+### Scalability Features
+
+- **Horizontal Scaling**: Support for Neo4j clustering
+- **API Rate Limiting**: Configurable request throttling
+- **Connection Pooling**: Efficient database connection management
+- **Resource Monitoring**: Performance metrics and health checks
+
+## 🔧 Development & Testing
+
+### Running Tests
+
+```bash
+# Install development dependencies
+pip install pytest pytest-asyncio pytest-cov
+
+# Run test suite
+pytest tests/ -v
+
+# Run with coverage reporting
+pytest --cov=src tests/ --cov-report=html
+```
+
+### Code Quality Tools
+
+```bash
+# Format code with Black
+black src/ *.py
+
+# Type checking with MyPy
+mypy src/
+
+# Linting with Flake8
+flake8 src/ --max-line-length=88
+
+# Security scanning
+bandit -r src/
+```
+
+### Development Server
+
+```bash
+# Chat interface with auto-reload
+streamlit run app.py --server.runOnSave=true
+
+# API service with auto-reload
+uvicorn api_service:app --reload --host 0.0.0.0 --port 8000
+```
+
+## 🚀 Deployment Options
+
+### Local Development
+
+```bash
+# Start chat interface
+streamlit run app.py
+
+# Start API service
+python api_service.py
+```
+
+### Docker Deployment
+
+```bash
+# Build production image
+docker build -t cyber-llm:latest .
+
+# Run chat interface
+docker run -p 8501:8501 --env-file .env cyber-llm:latest
+
+# Run API service
+docker run -p 8000:8000 --env-file .env cyber-llm:latest python api_service.py
+```
+
+### Production Deployment
+
+```bash
+# Using Docker Compose
+docker-compose up -d
+
+# Using Kubernetes
+kubectl apply -f k8s/
+
+# Manual deployment with Gunicorn
+gunicorn api_service:app -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+## 🔐 Security Considerations
+
+### Authentication & Authorization
+
+- **JWT-based Authentication**: Secure token-based access control
+- **Session Management**: Secure state handling with expiration
+- **Role-based Access**: Configurable user permissions
+- **API Key Management**: Secure external service integration
+
+### Data Protection
+
+- **Encrypted Connections**: TLS/SSL for all network communications
+- **Environment Variables**: Secure configuration management
+- **Input Validation**: Comprehensive sanitization and validation
+- **Error Handling**: Secure error messages without information leakage
+
+### Security Best Practices
+
+- **Parameter Binding**: SQL injection prevention in Neo4j queries
+- **Rate Limiting**: Protection against abuse and DoS attacks
+- **CORS Configuration**: Secure cross-origin resource sharing
+- **Audit Logging**: Comprehensive security event logging
+
+## 📚 API Reference
+
+### Authentication Endpoints
+
+- **POST `/login`**: User authentication with credentials
+- **GET `/user-info`**: Current user profile and permissions
+
+### Analysis Endpoints
+
+- **POST `/analyze`**: Comprehensive security event analysis
+- **GET `/health`**: Service health check and status information
+
+### Security Event Analysis Request Format
 
 ```json
 {
@@ -209,8 +422,8 @@ curl -X POST "http://localhost:8000/analyze" \
   "process_creation_time": "2025-07-03 16:34:21.960+07:00",
   "logged_on_user": "SYSTEM@NT AUTHORITY",
   "process_hash": "3fd857449ab04f2293985d1d770e0520466bd65c",
-  "process_parent_tree": {
-    "0": {
+  "process_parent_tree": [
+    {
       "prcsCreationTime": "2025-07-03 16:34:19.728+07:00",
       "prcsHash": "26d9650e827f35cb38c4560ad925d2bd4a7e6f43",
       "prcsPID": 1400,
@@ -218,8 +431,26 @@ curl -X POST "http://localhost:8000/analyze" \
       "prcsUserDomain": "NT AUTHORITY",
       "prcsUserName": "SYSTEM@NT AUTHORITY",
       "prcsVerdict": "Safe"
+    },
+    {
+      "prcsCreationTime": "2025-07-03 16:34:19.809+07:00",
+      "prcsHash": "2598905e5b093aa6116175a4a970a7cb21ab3231",
+      "prcsPID": 1540,
+      "prcsPath": "C:\\Windows\\System32\\services.exe",
+      "prcsUserDomain": "NT AUTHORITY",
+      "prcsUserName": "SYSTEM@NT AUTHORITY",
+      "prcsVerdict": "Safe"
+    },
+    {
+      "prcsCreationTime": "2025-07-03 16:34:21.079+07:00",
+      "prcsHash": "3fd857449ab04f2293985d1d770e0520466bd65c",
+      "prcsPID": 4288,
+      "prcsPath": "C:\\Program Files\\RustDesk\\RustDesk.exe",
+      "prcsUserDomain": "NT AUTHORITY",
+      "prcsUserName": "SYSTEM@NT AUTHORITY",
+      "prcsVerdict": "Unknown"
     }
-  },
+  ],
   "process_path": "C:\\Program Files\\RustDesk\\RustDesk.exe",
   "process_user_domain": "NT AUTHORITY",
   "process_user_name": "SYSTEM@NT AUTHORITY",
@@ -227,189 +458,88 @@ curl -X POST "http://localhost:8000/analyze" \
 }
 ```
 
-**Response Formats:**
-
-```json
-{ "action": "Alert Only" }
-```
+### Security Event Analysis Response Format
 
 ```json
 {
-  "action": "Terminate and Execute Command",
-  "auto": "yes",
-  "command": "shutdown /r /f /t 0"
+  "incident_id": "DEFENSEPLUS-desktop-tqja799-1720002465",
+  "technique_info": {
+    "id": "T1003.001",
+    "name": "OS Credential Dumping: LSASS Memory",
+    "description": "Adversaries may attempt to access credential material stored in the process memory of the Local Security Authority Subsystem Service (LSASS).",
+    "tactic": "Credential Access"
+  },
+  "context": {
+    "associated_software": ["Mimikatz", "Pypykatz", "Cobalt Strike"],
+    "associated_groups": ["APT28", "FIN6", "Lazarus Group"],
+    "process_of_interest": {
+      "name": "RustDesk.exe",
+      "path": "C:\\Program Files\\RustDesk\\RustDesk.exe",
+      "pid": 4288,
+      "hash": "3fd857449ab04f2293985d1d770e0520466bd65c"
+    }
+  },
+  "countermeasures": [
+    {
+      "category": "Containment",
+      "action": "Isolate the device from the network to prevent lateral movement.",
+      "command": "netsh advfirewall firewall add rule name=\"IsolateDevice\" dir=in action=block"
+    },
+    {
+      "category": "Eradication",
+      "action": "Terminate the suspicious process immediately to stop the credential dumping activity.",
+      "command": "taskkill /PID 4288 /F"
+    }
+  ]
 }
 ```
 
-```json
-{
-  "action": "Terminate and Execute Command",
-  "auto": "no",
-  "command": "shutdown /r /f /t 0"
-}
-```
-
-### 💬 Interactive Chat Interface
-
-- **ATT&CK Questions**: "Tell me about T1055 Process Injection"
-- **CIS Controls**: "What are the CIS Controls for network security?"
-- **NIST Framework**: "Explain the NIST Cybersecurity Framework Protect function"
-- **HIPAA Compliance**: "What are HIPAA requirements for data encryption?"
-- **Cross-Framework**: "How do CIS Controls relate to NIST CSF categories?"
-- **PCI DSS**: "What are the PCI DSS requirements for cardholder data?"
-
-### Knowledge Base Exploration
-
-- **Multi-Framework Statistics**: View counts across all supported frameworks
-- **Framework-Specific Browsing**: Explore controls, techniques, and requirements by framework
-- **Cross-Framework Relationships**: Discover connections between different standards
-- **Citation Tracking**: Access source documents and references
-- **Compliance Mapping**: Map requirements across regulatory frameworks
-
-## 🏗️ Architecture
-
-```
-├── src/
-│   ├── cybersecurity/              # Multi-framework data ingestion
-│   │   ├── __init__.py
-│   │   ├── attack_ingestion.py     # MITRE ATT&CK ingestion
-│   │   ├── cis_ingestion.py        # CIS Controls ingestion
-│   │   ├── nist_ingestion.py       # NIST CSF ingestion
-│   │   ├── hipaa_ingestion.py      # HIPAA regulatory ingestion
-│   │   ├── ffiec_ingestion.py      # FFIEC examination procedures
-│   │   └── pci_dss_ingestion.py    # PCI DSS security standards
-│   ├── knowledge_base/             # Graph database operations
-│   │   ├── database.py             # Neo4j connection
-│   │   └── graph_operations.py     # Multi-framework queries
-│   ├── api/                        # LLM integration
-│   │   └── llm_service.py          # Gemini API wrapper
-│   ├── auth/                       # Authentication
-│   │   └── auth.py                 # Authentication logic
-│   ├── web/                        # UI components
-│   │   ├── components.py           # Streamlit components
-│   │   └── ui.py                  # CSS styles
-│   ├── utils/                      # Utilities
-│   │   └── initialization.py   # App initialization
-│   └── config/                  # Configuration
-│       └── settings.py          # Environment settings
-├── api_service.py               # REST API service
-├── app.py                       # Chat application
-├── test_api.py                  # API testing script
-├── docker-compose.yml           # Multi-service deployment
-├── requirements.txt             # Dependencies
-├── Dockerfile                   # Container configuration
-└── README.md                    # This file
-```
-
-## 🔧 Configuration
-
-### Neo4j Setup
-
-The application requires a Neo4j database instance. You can use:
-
-- Neo4j Desktop (local development)
-- Neo4j Aura (cloud service)
-- Self-hosted Neo4j instance
-
-### Environment Variables
-
-- `GEMINI_API_KEY`: Your Google Gemini API key
-- `NEO4J_URI`: Neo4j connection URI
-- `NEO4J_USERNAME`: Database username
-- `NEO4J_PASSWORD`: Database password
-- `NEO4J_DATABASE`: Database name (usually 'neo4j')
-
-## 🔍 Data Sources
-
-The application automatically ingests data from multiple cybersecurity frameworks:
-
-- **NIST Cybersecurity Framework**: Core framework controls and guidelines
-- **CIS Controls**: Critical security controls and implementation guidance
-- **MITRE ATT&CK Framework**: Latest techniques, tactics, and procedures
-- **FFIEC IT Handbook**: Financial sector cybersecurity requirements
-- **HIPAA Security**: Healthcare data protection requirements
-- **PCI DSS**: Payment card industry security standards
-
-## 🚨 Security Considerations
-
-- Store API keys securely in environment variables
-- Use HTTPS in production deployments
-- Change default authentication credentials for production use
-- Use strong JWT secret keys in production
-- Regularly update dependencies for security patches
-- Consider network security for Neo4j database access
-- Implement proper session management for multi-user environments
-
-## 🔄 Data Updates
-
-The application fetches the latest framework data on initialization. To update:
-
-1. Use the "Re-ingest Framework Data" button in the sidebar
-2. Or restart the application to fetch fresh data
-
-## 🔗 API Integration
-
-The REST API service can be integrated with security tools and SIEM systems:
-
-1. **Start the API service**: `python -m uvicorn api_service:app --host 0.0.0.0 --port 8000`
-2. **Send security events**: POST to `/analyze` endpoint
-3. **Receive recommendations**: Get automated response actions
-4. **Health monitoring**: Use `/health` endpoint for service status
-
-## 📚 API Documentation
-
-### Endpoints
-
-- **POST /analyze** - Analyze security events and get response recommendations
-- **GET /health** - Service health check
-- **GET /** - API information and available endpoints
-- **GET /docs** - Interactive API documentation (Swagger UI)
-- **GET /redoc** - Alternative API documentation
-
-### Testing the API
-
-1. **Start the API service**:
-
-   ```bash
-   python -m uvicorn api_service:app --host 0.0.0.0 --port 8000
-   ```
-
-2. **Test with the provided script**:
-
-   ```bash
-   python test_api.py
-   ```
-
-3. **Access interactive documentation**:
-   - Swagger UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+**Note**: All response data is fetched from the knowledge base, while countermeasures are generated by the LLM.
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+We welcome contributions to improve the Cybersecurity Framework Assistant!
 
-## 📝 License
+### Development Setup
 
-[Add your license information here]
+1. Fork the repository and clone your fork
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Install development dependencies: `pip install -r requirements-dev.txt`
+4. Make your changes and add tests
+5. Run the test suite and ensure all tests pass
+6. Submit a pull request with a clear description
 
-## 🆘 Support
+### Contribution Guidelines
 
-For issues and questions:
+- Follow PEP 8 style guide for Python code
+- Add comprehensive docstrings for all functions and classes
+- Include unit tests for new functionality
+- Update documentation for significant changes
+- Ensure compatibility with existing API interfaces
 
-1. Check the troubleshooting section in the app
-2. Verify your environment configuration
-3. Ensure Neo4j connectivity
-4. Check API key validity
+## 📄 License
 
-## 🔮 Future Enhancements
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- Support for additional cybersecurity frameworks (ISO 27001)
-- Real-time threat intelligence feeds
-- Custom threat modeling capabilities
-- Integration with SIEM systems
-- Advanced visualization of attack paths
-- Export capabilities for reports and analysis
+## 📞 Support & Contact
+
+For questions, issues, or contributions:
+
+- **🐛 Bug Reports**: [Create an issue](https://github.com/your-username/cyber-llm/issues)
+- **💡 Feature Requests**: [Open a discussion](https://github.com/your-username/cyber-llm/discussions)
+- **📖 Documentation**: Comprehensive guides in the `/docs` folder
+- **💬 Community**: Join our discussions for support and collaboration
+
+## 🔗 Related Resources
+
+- **MITRE ATT&CK**: [Official Framework Documentation](https://attack.mitre.org/)
+- **Neo4j**: [Graph Database Documentation](https://neo4j.com/docs/)
+- **FastAPI**: [Modern Python Web Framework](https://fastapi.tiangolo.com/)
+- **Streamlit**: [Interactive Web Applications](https://streamlit.io/)
+- **Google Gemini**: [Advanced AI Language Models](https://cloud.google.com/ai)
+
+---
+
+**Built with ❤️ for the cybersecurity community**
+
+_Empowering security professionals with AI-driven threat intelligence and compliance automation_

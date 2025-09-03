@@ -1,598 +1,908 @@
 """
-Streamlit components for the multi-framework cybersecurity application.
+Streamlit UI Components for Cybersecurity Framework Assistant
+
+This module provides the core user interface components for the cybersecurity
+framework assistant application, including chat interfaces, knowledge base
+management, statistics displays, and administrative functionality.
+
+Components:
+- Interactive chat interface with conversation history
+- Dynamic statistics display with real-time data
+- Knowledge base search and exploration tools
+- Document management and upload functionality
+- Sidebar navigation and framework status indicators
+- Cache management for performance optimization
+
+Features:
+- Session state persistence for chat history
+- Real-time statistics caching and invalidation
+- Advanced search with filtering capabilities
+- Document processing interface
+- Framework status monitoring and management
+- Responsive design with error boundaries
 """
+
+import json
+import os
+import tempfile
+from datetime import datetime
+from typing import Any, Dict
+
 import streamlit as st
 
+from src.cybersecurity.attack_ingestion import AttackIngestion
 from src.knowledge_base.graph_operations import (
-    get_framework_aware_context, get_multi_framework_statistics, search_multi_framework_knowledge_base,
-    get_techniques_by_tactic, get_threat_group_techniques, search_by_technique_id, 
-    get_all_tactics, get_all_threat_groups
+    get_context_from_knowledge_base,
+    get_dynamic_knowledge_base_stats,
+    search_knowledge_base,
 )
-from src.api.llm_service import chat_with_knowledge_base, analyze_user_query
-from src.utils.initialization import refresh_knowledge_base, ingest_individual_framework
+from src.utils.initialization import get_ingestion_status
 
-def chat_tab(graph, llm):
-    """Display the chat tab for interacting with the multi-framework cybersecurity AI assistant."""
-    st.markdown("### 💬 Ask Your Multi-Framework Cybersecurity AI Assistant")
-    
-    # Add framework and search mode selection
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        framework_scope = st.selectbox(
-            "🎯 Framework Scope:",
-            options=["All Frameworks", "ATT&CK Only", "CIS Controls", "NIST CSF", "HIPAA", "FFIEC", "PCI DSS"],
-            index=0,
-            help="Choose which cybersecurity frameworks to include in your search"
-        )
-    
-    with col2:
-        search_mode = st.radio(
-            "🔧 Search Mode:",
-            options=["Smart Selective Search", "Comprehensive Search"],
-            index=0,
-            horizontal=True,
-            help="Smart Search analyzes your question and queries relevant object types. Comprehensive Search queries all types."
-        )
-    
-    # Display chat messages only if there are any
-    if st.session_state.messages:
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        for message in st.session_state.messages:
-            if message["role"] == "user":
-                st.markdown(f'<div class="user-message">👤 {message["content"]}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="assistant-message">🤖 {message["content"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("💡 Start a conversation by asking about any cybersecurity framework. Examples: 'Tell me about T1055 Process Injection', 'What are CIS Control 1 safeguards?', 'Explain NIST CSF Protect function', 'What are HIPAA privacy requirements?'")
-    
-    # Chat input
-    user_input = st.chat_input("Ask me anything about cybersecurity frameworks...")
-    
-    if user_input:
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        
-        # Get AI response based on selected search mode and framework scope
-        with st.spinner(f"Analyzing {framework_scope} cybersecurity data..."):
-            if search_mode == "Smart Selective Search":
-                # Step 1: Analyze the user query to determine relevant object types within framework scope
-                with st.spinner(f"🔍 Analyzing your question for {framework_scope}..."):
-                    query_analysis = analyze_user_query(llm, user_input, framework_scope)
-                
-                # Step 2: Get selective context from the knowledge base with framework filtering
-                with st.spinner(f"📊 Searching {', '.join(query_analysis['relevant_types'])} in {framework_scope}..."):
-                    # Use multi-framework search for comprehensive results
-                    if framework_scope == "All Frameworks" or len(query_analysis['relevant_types']) > 3:
-                        context = search_multi_framework_knowledge_base(graph, user_input)
-                    else:
-                        context = get_framework_aware_context(
-                            graph, 
-                            query_analysis['keywords'], 
-                            query_analysis['relevant_types'],
-                            framework_scope
-                        )
-                
-                # Step 3: Generate framework-specific response using LLM
-                with st.spinner("🤖 Generating framework-specific response..."):
-                    response = chat_with_knowledge_base(llm, context, user_input, framework_scope)
-                    
-                # Add analysis info to response (for transparency)
-                analysis_info = f"\n\n---\n*🎯 Framework: {framework_scope}*\n*🔍 Query Focus: {query_analysis['focus']}*\n*� Searched: {', '.join(query_analysis['relevant_types'])}*\n*📝 Keywords: {', '.join(query_analysis['keywords'])}*"
-                response = response + analysis_info
-                
-            else:  # Comprehensive Search
-                # Use comprehensive search across ALL object types within framework scope
-                with st.spinner(f"📊 Searching ALL {framework_scope} object types comprehensively..."):
-                    # Use multi-framework search for comprehensive results across all frameworks
-                    if framework_scope == "All Frameworks":
-                        context = search_multi_framework_knowledge_base(graph, user_input)
-                    else:
-                        # For comprehensive search, include all possible object types for the framework
-                        if framework_scope == "ATT&CK Only":
-                            all_types = ["techniques", "malware", "threat_groups", "tools", "mitigations", "data_sources", "campaigns"]
-                        elif framework_scope == "CIS Controls":
-                            all_types = ["cis_controls", "cis_safeguards", "implementation_groups"]
-                        elif framework_scope == "NIST CSF":
-                            all_types = ["nist_functions", "nist_categories", "nist_subcategories"]
-                        elif framework_scope == "HIPAA":
-                            all_types = ["hipaa_regulations", "hipaa_sections", "hipaa_requirements"]
-                        elif framework_scope == "FFIEC":
-                            all_types = ["ffiec_categories", "ffiec_procedures", "ffiec_guidance"]
-                        elif framework_scope == "PCI DSS":
-                            all_types = ["pci_requirements", "pci_procedures", "pci_controls"]
-                        else:  # All Frameworks
-                            all_types = ["techniques", "malware", "threat_groups", "tools", "mitigations", 
-                                       "cis_controls", "cis_safeguards", "nist_functions", "nist_categories",
-                                       "hipaa_regulations", "hipaa_sections", "pci_requirements"]
-                        
-                        # Extract keywords from user input for comprehensive search
-                        keywords = [word.strip() for word in user_input.split() if len(word.strip()) > 2][:5]
-                        
-                        context = get_framework_aware_context(
-                            graph, 
-                            keywords,
-                            all_types,
-                            framework_scope
-                        )
-                
-                with st.spinner("🤖 Generating comprehensive response..."):
-                    response = chat_with_knowledge_base(llm, context, user_input, framework_scope)
-                    
-                # Add framework info to response
-                if framework_scope == "All Frameworks":
-                    framework_info = f"\n\n---\n*🎯 Framework: {framework_scope}*\n*🔍 Search Mode: Multi-framework comprehensive search*"
-                else:
-                    framework_info = f"\n\n---\n*🎯 Framework: {framework_scope}*\n*� Search Mode: Comprehensive framework search*"
-                response = response + framework_info
-        
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        
-        # Rerun to update the chat display
-        st.rerun()
 
-def knowledge_base_tab(graph):
-    """Display the multi-framework knowledge base exploration tab."""
-    st.markdown("""
-    <div class="kb-section">
-        <h2 style="color: inherit;">🔍 Explore Multi-Framework Knowledge Base</h2>
-        <p style="color: inherit;">Browse and explore comprehensive cybersecurity frameworks</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Framework selection
-    selected_framework = st.selectbox(
-        "Select Framework to Explore:",
-        ["All Frameworks", "ATT&CK", "CIS Controls", "NIST CSF", "HIPAA", "FFIEC", "PCI DSS"],
-        help="Choose which cybersecurity framework to explore"
+def invalidate_statistics_cache():
+    """
+    Clear cached statistics to force refresh on next access.
+
+    This function removes cached statistics data to ensure that
+    updated information is displayed after data modifications
+    such as new document ingestion or framework updates.
+    """
+    if "stats_cache" in st.session_state:
+        del st.session_state.stats_cache
+    if "stats_last_updated" in st.session_state:
+        del st.session_state.stats_last_updated
+    st.session_state.force_stats_refresh = True
+
+
+def reset_ingestion_status():
+    """
+    Reset the framework ingestion status to initial state.
+
+    Clears all ingestion status information and resets the tracking
+    file to allow for fresh framework processing and status monitoring.
+    """
+    initial_status = {
+        "ingested_documents": [],
+        "ingested_frameworks": {
+            "attack": {
+                "status": "not_ingested",
+                "domains": [],
+                "last_updated": None,
+                "node_counts": {
+                    "techniques": 0,
+                    "tactics": 0,
+                    "groups": 0,
+                    "software": 0,
+                    "mitigations": 0,
+                    "data_sources": 0,
+                },
+            }
+        },
+        "total_nodes": 0,
+        "last_updated": datetime.now().isoformat(),
+    }
+
+    config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
+    status_file = os.path.join(config_dir, "ingestion_status.json")
+
+    with open(status_file, "w") as f:
+        json.dump(initial_status, f, indent=2)
+
+
+def display_dynamic_statistics(graph):
+    """
+    Display comprehensive knowledge base statistics with intelligent caching.
+
+    Presents real-time statistics about the cybersecurity knowledge base
+    including framework counts, node distributions, and ingestion status.
+    Implements intelligent caching to optimize performance while ensuring
+    data freshness for user interactions.
+
+    Args:
+        graph: Neo4j database connection for statistics queries
+
+    Features:
+    - Automatic cache refresh for new sessions
+    - Visual metrics with color-coded status indicators
+    - Framework-specific breakdowns and summaries
+    - Performance-optimized data retrieval
+    """
+    st.markdown("#### 📊 Knowledge Base Statistics")
+
+    current_ingestion_status = get_ingestion_status()
+    last_updated = current_ingestion_status.get("last_updated", "")
+
+    need_refresh = (
+        "stats_cache" not in st.session_state
+        or "stats_last_updated" not in st.session_state
+        or st.session_state.get("stats_last_updated", "") != last_updated
+        or st.session_state.get("force_stats_refresh", False)
     )
-    
-    # Statistics section
-    with st.expander("📊 Knowledge Base Statistics", expanded=True):
-        try:
-            stats = get_multi_framework_statistics(graph)
-            
-            if selected_framework == "All Frameworks":
-                # Overall metrics
-                overall = stats.get('Overall', {})
-                st.markdown("### 🌐 Overall Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Nodes", overall.get('total_nodes', 0))
-                with col2:
-                    st.metric("Total Relationships", overall.get('total_relationships', 0))
-                with col3:
-                    st.metric("Citations", overall.get('citations', 0))
-                
-                st.markdown("---")
-                
-                # Framework-specific metrics in a 2x3 grid for better alignment
-                st.markdown("### 📋 Framework Statistics")
-                
-                # Row 1: ATT&CK, NIST CSF, CIS Controls
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown("#### 🎯 MITRE ATT&CK")
-                    attck = stats.get('MITRE_ATTCK', {})
-                    # Display ATT&CK metrics in a more compact format
-                    st.metric("Techniques", attck.get('techniques', 0))
-                    st.metric("Threat Groups", attck.get('threat_groups', 0))
-                    
-                    # Additional ATT&CK metrics in smaller format
-                    col1_sub1, col1_sub2 = st.columns(2)
-                    with col1_sub1:
-                        st.metric("Malware", attck.get('malware', 0))
-                        st.metric("Tools", attck.get('tools', 0))
-                    with col1_sub2:
-                        st.metric("Tactics", attck.get('tactics', 0))
-                        st.metric("Mitigations", attck.get('mitigations', 0))
-                
-                with col2:
-                    st.markdown("#### �️ NIST CSF")
-                    nist = stats.get('NIST_CSF', {})
-                    st.metric("Functions", nist.get('functions', 0))
-                    st.metric("Categories", nist.get('categories', 0))
-                    st.metric("Subcategories", nist.get('subcategories', 0))
-                    # Add spacing to match ATT&CK height
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                
-                with col3:
-                    st.markdown("#### 🔧 CIS Controls")
-                    cis = stats.get('CIS_Controls', {})
-                    st.metric("Controls", cis.get('controls', 0))
-                    st.metric("Safeguards", cis.get('safeguards', 0))
-                    st.metric("Asset Types", cis.get('asset_types', 0))
-                    # Add spacing to match ATT&CK height
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                
-                # Row 2: HIPAA, FFIEC, PCI DSS
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown("#### � HIPAA")
-                    hipaa = stats.get('HIPAA', {})
-                    st.metric("Regulations", hipaa.get('regulations', 0))
-                    st.metric("Sections", hipaa.get('sections', 0))
-                    st.metric("Requirements", hipaa.get('requirements', 0))
-                
-                with col2:
-                    st.markdown("#### 🏦 FFIEC")
-                    ffiec = stats.get('FFIEC', {})
-                    st.metric("Domains", ffiec.get('domains', 0))
-                    st.metric("Processes", ffiec.get('processes', 0))
-                    st.metric("Activities", ffiec.get('activities', 0))
-                
-                with col3:
-                    st.markdown("#### 💳 PCI DSS")
-                    pci = stats.get('PCI_DSS', {})
-                    st.metric("Requirements", pci.get('requirements', 0))
-                    st.metric("Sub-requirements", pci.get('sub_requirements', 0))
-                    st.metric("Testing Procedures", pci.get('testing_procedures', 0))
-                    
-            elif selected_framework == "ATT&CK":
-                attck = stats.get('MITRE_ATTCK', {})
-                st.markdown("#### 🎯 MITRE ATT&CK Framework Statistics")
-                
-                # Row 1: Main entities
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Techniques", attck.get('techniques', 0))
-                    st.metric("Malware", attck.get('malware', 0))
-                with col2:
-                    st.metric("Threat Groups", attck.get('threat_groups', 0))
-                    st.metric("Tools", attck.get('tools', 0))
-                with col3:
-                    st.metric("Tactics", attck.get('tactics', 0))
-                    st.metric("Mitigations", attck.get('mitigations', 0))
-                
-                # Row 2: Additional metrics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Data Sources", attck.get('data_sources', 0))
-                with col2:
-                    st.metric("Campaigns", attck.get('campaigns', 0))
-                with col3:
-                    st.write("")  # Empty for alignment
-                    
-            elif selected_framework == "CIS Controls":
-                cis = stats.get('CIS_Controls', {})
-                st.markdown("#### 🔧 CIS Controls Framework Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Controls", cis.get('controls', 0))
-                with col2:
-                    st.metric("Safeguards", cis.get('safeguards', 0))
-                with col3:
-                    st.metric("Asset Types", cis.get('asset_types', 0))
-                    
-            elif selected_framework == "NIST CSF":
-                nist = stats.get('NIST_CSF', {})
-                st.markdown("#### 🏛️ NIST Cybersecurity Framework Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Functions", nist.get('functions', 0))
-                with col2:
-                    st.metric("Categories", nist.get('categories', 0))
-                with col3:
-                    st.metric("Subcategories", nist.get('subcategories', 0))
-                    
-            elif selected_framework == "HIPAA":
-                hipaa = stats.get('HIPAA', {})
-                st.markdown("#### 🏥 HIPAA Security Framework Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Regulations", hipaa.get('regulations', 0))
-                with col2:
-                    st.metric("Sections", hipaa.get('sections', 0))
-                with col3:
-                    st.metric("Requirements", hipaa.get('requirements', 0))
-                    
-            elif selected_framework == "FFIEC":
-                ffiec = stats.get('FFIEC', {})
-                st.markdown("#### 🏦 FFIEC IT Handbook Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Domains", ffiec.get('domains', 0))
-                with col2:
-                    st.metric("Processes", ffiec.get('processes', 0))
-                with col3:
-                    st.metric("Activities", ffiec.get('activities', 0))
-                    
-            elif selected_framework == "PCI DSS":
-                pci = stats.get('PCI_DSS', {})
-                st.markdown("#### 💳 PCI DSS Framework Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Requirements", pci.get('requirements', 0))
-                with col2:
-                    st.metric("Sub-requirements", pci.get('sub_requirements', 0))
-                with col3:
-                    st.metric("Testing Procedures", pci.get('testing_procedures', 0))
-                    
-        except Exception as e:
-            st.error(f"Error loading statistics: {e}")
-    
-    # Multi-framework search section
-    st.markdown("### 🔎 Search Multi-Framework Knowledge Base")
-    
-    # Search input with framework selection
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        search_query = st.text_input(
-            "Enter search query:",
-            placeholder="e.g., 'phishing', 'encryption', 'access control', 'T1055', 'NIST.ID'",
-            help="Search across all cybersecurity frameworks or specific framework content"
-        )
-    with col2:
-        search_framework = st.selectbox(
-            "Framework Filter:",
-            ["All Frameworks", "ATT&CK Only", "CIS Only", "NIST Only", "HIPAA Only", "FFIEC Only", "PCI DSS Only"],
-            help="Filter search results by specific framework"
-        )
-    
-    # Search button and results
-    if search_query and st.button("🔍 Search Knowledge Base", use_container_width=True):
-        with st.spinner(f"Searching {search_framework} for '{search_query}'..."):
-            try:
-                # Use the comprehensive multi-framework search
-                search_results = search_multi_framework_knowledge_base(graph, search_query)
-                
-                if search_results and search_results != "No relevant information found across any cybersecurity frameworks.":
-                    st.markdown("### 📋 Search Results")
-                    st.markdown(search_results)
-                else:
-                    st.info(f"No results found for '{search_query}' in {search_framework}")
-                    st.markdown("**Try:**")
-                    st.markdown("• Different keywords or terms")
-                    st.markdown("• Broader search terms")
-                    st.markdown("• Specific technique IDs (e.g., T1055)")
-                    st.markdown("• Control identifiers (e.g., CIS Control 1)")
-                    
-            except Exception as e:
-                st.error(f"Error during search: {e}")
-    
-    # Advanced ATT&CK-specific search (for backwards compatibility)
-    if selected_framework == "ATT&CK" or selected_framework == "All Frameworks":
-        with st.expander("🎯 Advanced ATT&CK Search", expanded=False):
-            search_type = st.radio(
-                "Search ATT&CK by:",
-                ["Technique ID", "Tactic", "Threat Group"],
-                horizontal=True
+
+    if need_refresh:
+        with st.spinner("📈 Generating statistics..."):
+            stats = get_dynamic_knowledge_base_stats(graph)
+            st.session_state.stats_cache = stats
+            st.session_state.stats_last_updated = last_updated
+            st.session_state.force_stats_refresh = False
+    else:
+        stats = st.session_state.stats_cache
+
+    if "error" in stats:
+        st.error(f"Error loading statistics: {stats['error']}")
+        return
+
+    overview = stats.get("overview", {})
+    if overview:
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Total Nodes", f"{overview.get('total_nodes', 0):,}")
+
+        with col2:
+            st.metric(
+                "Total Relationships", f"{overview.get('total_relationships', 0):,}"
             )
-            
-            if search_type == "Technique ID":
-                technique_id = st.text_input("Enter Technique ID (e.g., T1055):")
-                if technique_id and st.button("Search Technique"):
+
+        with col3:
+            st.metric("Frameworks", overview.get("ingested_frameworks", 0))
+
+        with col4:
+            last_updated = overview.get("last_updated")
+            if last_updated:
+                st.metric("Last Updated", last_updated[:10])
+
+    frameworks = stats.get("frameworks", {})
+    if frameworks:
+        st.markdown("#### 🎯 Framework Breakdown")
+
+        ingestion_status = get_ingestion_status()
+
+        for framework, fw_stats in frameworks.items():
+            if "error" not in fw_stats:
+                # Create dynamic framework mapping by checking ingestion status keys
+                framework_key = framework.lower().replace(" ", "_")
+
+                # Find matching framework key in ingestion status
+                framework_info = {}
+                last_updated = "Unknown"
+
+                # Check all ingested frameworks to find a match
+                ingested_frameworks = ingestion_status.get("ingested_frameworks", {})
+                for status_key, status_info in ingested_frameworks.items():
+                    # Check if framework names match (flexible matching)
+                    if (
+                        status_key.lower() == framework_key
+                        or status_key.lower() in framework.lower()
+                        or framework.lower() in status_key.lower()
+                        or any(
+                            word in status_key.lower()
+                            for word in framework.lower().split()
+                        )
+                    ):
+                        framework_info = status_info
+                        last_updated = status_info.get("last_updated", "Unknown")
+                        break
+
+                # Parse and format the last_updated date
+                if last_updated != "Unknown" and last_updated:
                     try:
-                        result = search_by_technique_id(graph, technique_id.upper())
-                        if result:
-                            st.markdown(f"### {result['technique_id']} - {result['name']}")
-                            st.markdown(f"**Description:** {result['description']}")
-                            
-                            if result['platforms']:
-                                st.markdown(f"**Platforms:** {', '.join(result['platforms'])}")
-                            
-                            if result['tactics']:
-                                st.markdown(f"**Tactics:** {', '.join(result['tactics'])}")
-                            
-                            if result['threat_groups']:
-                                threat_groups = [group for group in result['threat_groups'] if group]
-                                if threat_groups:
-                                    st.markdown(f"**Used by Threat Groups:** {', '.join(threat_groups)}")
-                            
-                            if result['malware']:
-                                malware_list = [malware for malware in result['malware'] if malware]
-                                if malware_list:
-                                    st.markdown(f"**Associated Malware:** {', '.join(malware_list)}")
-                        else:
-                            st.warning(f"Technique {technique_id} not found.")
-                    except Exception as e:
-                        st.error(f"Error searching technique: {e}")
-            
-            elif search_type == "Tactic":
-                try:
-                    tactics = get_all_tactics(graph)
-                    if tactics:
-                        selected_tactic = st.selectbox("Select a tactic:", tactics)
-                        if selected_tactic and st.button("Show Techniques"):
-                            techniques = get_techniques_by_tactic(graph, selected_tactic)
-                            if techniques:
-                                st.markdown(f"### Techniques for {selected_tactic.title()} Tactic")
-                                for tech in techniques:
-                                    with st.expander(f"{tech['technique_id']} - {tech['name']}"):
-                                        st.markdown(tech['description'][:500] + "...")
-                            else:
-                                st.info("No techniques found for this tactic.")
+                        from datetime import datetime
+
+                        dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+                        last_updated = dt.strftime("%Y-%m-%d")
+                    except:
+                        last_updated = (
+                            last_updated[:10]
+                            if len(last_updated) >= 10
+                            else last_updated
+                        )
+
+                with st.expander(f"📋 {framework.upper()}"):
+                    if framework == "attack":
+                        display_attack_stats(fw_stats, last_updated)
                     else:
-                        st.info("No tactics found in the knowledge base.")
-                except Exception as e:
-                    st.error(f"Error loading tactics: {e}")
-            
-            elif search_type == "Threat Group":
-                try:
-                    threat_groups = get_all_threat_groups(graph)
-                    if threat_groups:
-                        group_names = [group['name'] for group in threat_groups if group['name']]
-                        selected_group = st.selectbox("Select a threat group:", group_names)
-                        if selected_group and st.button("Show Techniques"):
-                            techniques = get_threat_group_techniques(graph, selected_group)
-                            if techniques:
-                                st.markdown(f"### Techniques used by {selected_group}")
-                                for tech in techniques:
-                                    with st.expander(f"{tech['technique_id']} - {tech['technique_name']}"):
-                                        st.markdown(f"**Relationship:** {tech['relationship_type']}")
-                                        st.markdown(tech['description'][:500] + "...")
-                            else:
-                                st.info("No techniques found for this threat group.")
-                    else:
-                        st.info("No threat groups found in the knowledge base.")
-                except Exception as e:
-                    st.error(f"Error loading threat groups: {e}")
-    
-    # Framework-specific search hints
-    if selected_framework != "All Frameworks":
-        st.info(f"💡 **{selected_framework} Search Tips:**")
-        if selected_framework == "ATT&CK":
-            st.markdown("• Use technique IDs like T1055, T1059")
-            st.markdown("• Search for threat groups like APT1, Carbanak")
-            st.markdown("• Look for tactics like initial-access, persistence")
-        elif selected_framework == "CIS Controls":
-            st.markdown("• Search for control numbers like 'Control 1', 'CIS-1'")
-            st.markdown("• Look for safeguards and implementation groups")
-            st.markdown("• Search for asset types and security functions")
-        elif selected_framework == "NIST CSF":
-            st.markdown("• Search for functions like 'Identify', 'Protect', 'Detect'")
-            st.markdown("• Look for categories like 'ID.AM', 'PR.AC'")
-            st.markdown("• Search for subcategories and outcomes")
-        elif selected_framework == "HIPAA":
-            st.markdown("• Search for requirements like 'Administrative Safeguards'")
-            st.markdown("• Look for sections like 'Physical Safeguards'")
-            st.markdown("• Search for regulations and compliance items")
-        elif selected_framework == "FFIEC":
-            st.markdown("• Search for domains and processes")
-            st.markdown("• Look for activities and procedures")
-            st.markdown("• Search for IT examination guidance")
-        elif selected_framework == "PCI DSS":
-            st.markdown("• Search for requirements like 'Requirement 1', 'PCI-1'")
-            st.markdown("• Look for testing procedures")
-            st.markdown("• Search for payment card security controls")
+                        display_compliance_stats(fw_stats, last_updated)
+
+    documents = stats.get("documents", {})
+    if documents and documents.get("total_documents", 0) > 0:
+        st.markdown("#### 📄 Document Information")
+        st.metric("Total Documents", documents.get("total_documents", 0))
+
+    relationships = stats.get("relationships", {})
+    if relationships:
+        st.markdown("#### 🔗 Relationship Breakdown")
+        rel_cols = st.columns(min(len(relationships), 4))
+
+        for i, (rel_type, count) in enumerate(relationships.items()):
+            with rel_cols[i % 4]:
+                st.metric(rel_type.replace("_", " ").title(), f"{count:,}")
+
+
+def display_attack_stats(stats: Dict[str, Any], last_updated: str = "Unknown"):
+    """
+    Display MITRE ATT&CK framework statistics.
+
+    Args:
+        stats: Dictionary containing ATT&CK statistics
+        last_updated: Last update timestamp for the framework
+    """
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Techniques", f"{stats.get('techniques', 0):,}")
+        st.metric("Tactics", f"{stats.get('tactics', 0):,}")
+
+    with col2:
+        st.metric("Groups", f"{stats.get('groups', 0):,}")
+        st.metric("Software", f"{stats.get('software', 0):,}")
+
+    with col3:
+        st.metric("Mitigations", f"{stats.get('mitigations', 0):,}")
+        st.metric(
+            "Last Updated",
+            last_updated[:10] if last_updated != "Unknown" else "Unknown",
+        )
+
+
+def display_compliance_stats(stats: Dict[str, Any], last_updated: str = "Unknown"):
+    """
+    Display compliance framework statistics.
+
+    Args:
+        stats: Dictionary containing compliance framework statistics
+        last_updated: Last update timestamp for the framework
+    """
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("Controls", f"{stats.get('controls', 0):,}")
+        st.metric("Version", stats.get("version", "N/A"))
+
+    with col2:
+        st.metric("Regulatory Body", stats.get("regulatory_body", "Unknown"))
+        st.metric(
+            "Last Updated",
+            last_updated[:10] if last_updated != "Unknown" else "Unknown",
+        )
+
 
 def sidebar_components(graph):
-    """Display the sidebar components."""
-    # User info and logout at the top of sidebar
-    from src.auth.auth import check_streamlit_auth, streamlit_logout
-    
-    if check_streamlit_auth():
-        username = st.session_state.get("username", "User")
-        st.sidebar.markdown("### 👤 User Session")
-        st.sidebar.markdown(f"**Welcome, {username}!**")
-        if st.sidebar.button("🚪 Logout", use_container_width=True):
-            streamlit_logout()
-            st.rerun()
-        st.sidebar.markdown("---")
-    
-    st.sidebar.markdown("### 🛡️ Multi-Framework KB")
-    st.sidebar.markdown("**Features:**")
-    st.sidebar.markdown("• Chat with multi-framework knowledge base")
-    st.sidebar.markdown("• Explore ATT&CK, CIS, NIST, HIPAA, FFIEC, PCI DSS")
-    st.sidebar.markdown("• Cross-framework analysis and mapping")
-    st.sidebar.markdown("• Search threat intelligence and compliance")
+    """
+    Render enhanced sidebar with framework list and essential actions.
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📊 Framework Statistics")
-    
-    try:
-        stats = get_multi_framework_statistics(graph)
-        
-        # Display overall statistics
-        overall = stats.get('Overall', {})
-        st.sidebar.markdown(f"**Total Nodes:** {overall.get('total_nodes', 0)}")
-        st.sidebar.markdown(f"**Total Relationships:** {overall.get('total_relationships', 0)}")
-        
-        # MITRE ATT&CK
-        attck = stats.get('MITRE_ATTCK', {})
-        if attck.get('techniques', 0) > 0:
-            st.sidebar.markdown("**🎯 MITRE ATT&CK:**")
-            st.sidebar.markdown(f"  • Techniques: {attck.get('techniques', 0)}")
-            st.sidebar.markdown(f"  • Threat Groups: {attck.get('threat_groups', 0)}")
-            st.sidebar.markdown(f"  • Malware: {attck.get('malware', 0)}")
-            st.sidebar.markdown(f"  • Tools: {attck.get('tools', 0)}")
-        
-        # NIST CSF
-        nist = stats.get('NIST_CSF', {})
-        if nist.get('functions', 0) > 0:
-            st.sidebar.markdown("**🏛️ NIST CSF:**")
-            st.sidebar.markdown(f"  • Functions: {nist.get('functions', 0)}")
-            st.sidebar.markdown(f"  • Categories: {nist.get('categories', 0)}")
-            st.sidebar.markdown(f"  • Subcategories: {nist.get('subcategories', 0)}")
-        
-        # CIS Controls
-        cis = stats.get('CIS_Controls', {})
-        if cis.get('controls', 0) > 0:
-            st.sidebar.markdown("**🔧 CIS Controls:**")
-            st.sidebar.markdown(f"  • Controls: {cis.get('controls', 0)}")
-            st.sidebar.markdown(f"  • Safeguards: {cis.get('safeguards', 0)}")
-        
-        # HIPAA
-        hipaa = stats.get('HIPAA', {})
-        if hipaa.get('requirements', 0) > 0:
-            st.sidebar.markdown("**🏥 HIPAA:**")
-            st.sidebar.markdown(f"  • Requirements: {hipaa.get('requirements', 0)}")
-            st.sidebar.markdown(f"  • Sections: {hipaa.get('sections', 0)}")
-        
-        # FFIEC
-        ffiec = stats.get('FFIEC', {})
-        if ffiec.get('domains', 0) > 0:
-            st.sidebar.markdown("**🏦 FFIEC:**")
-            st.sidebar.markdown(f"  • Domains: {ffiec.get('domains', 0)}")
-            st.sidebar.markdown(f"  • Processes: {ffiec.get('processes', 0)}")
-        
-        # PCI DSS
-        pci = stats.get('PCI_DSS', {})
-        if pci.get('requirements', 0) > 0:
-            st.sidebar.markdown("**💳 PCI DSS:**")
-            st.sidebar.markdown(f"  • Requirements: {pci.get('requirements', 0)}")
-            st.sidebar.markdown(f"  • Sub-requirements: {pci.get('sub_requirements', 0)}")
-            
-    except Exception as e:
-        st.sidebar.error("Could not load statistics.")
+    Args:
+        graph: Neo4j database connection for operations
+    """
+    st.sidebar.markdown("### 🛡️ Framework List")
 
-    st.sidebar.markdown("---")
-    
-    # Multi-framework data management
-    st.sidebar.subheader("🔧 Data Management")
-    
-    # Framework selection for individual ingestion
-    selected_framework = st.sidebar.selectbox(
-        "Select Framework to Re-ingest:",
-        ["All Frameworks", "ATT&CK", "CIS Controls", "NIST CSF", "HIPAA", "FFIEC", "PCI DSS"],
-        help="Choose which framework to re-ingest data for"
-    )
-    
-    if st.sidebar.button("🔄 Re-ingest Framework Data"):
-        if st.session_state.knowledge_base_initialized:
-            if st.sidebar.button("⚠️ Confirm Re-ingest", key="confirm_reingest"):
-                st.warning("Re-ingesting framework data may take some time. Please do not close the browser.")
-                
-                if selected_framework == "All Frameworks":
-                    success, msg = refresh_knowledge_base(graph)
-                else:
-                    framework_map = {
-                        "ATT&CK": "attack",
-                        "CIS Controls": "cis", 
-                        "NIST CSF": "nist",
-                        "HIPAA": "hipaa",
-                        "FFIEC": "ffiec",
-                        "PCI DSS": "pci_dss"
-                    }
-                    success, msg = ingest_individual_framework(graph, framework_map[selected_framework])
-                
+    ingestion_status = get_ingestion_status()
+    frameworks = ingestion_status.get("ingested_frameworks", {})
+
+    if frameworks:
+        for framework, info in frameworks.items():
+            status = info.get("status", "not_ingested")
+            if status == "ingested":
+                st.sidebar.write(f"• {framework.upper()}")
+            else:
+                st.sidebar.write(f"• {framework.upper()}: Not Ingested")
+    else:
+        st.sidebar.info("No frameworks ingested yet")
+
+    st.sidebar.markdown("### ⚡ Quick Actions")
+
+    # Reset and Reingest KB
+    if st.sidebar.button("🔄 Reset and Reingest KB"):
+        if st.sidebar.button("⚠️ Confirm Reset", key="confirm_reset"):
+            try:
+                with st.spinner("Resetting knowledge base..."):
+                    reset_ingestion_status()
+                    invalidate_statistics_cache()
+
+                    attack_ingester = AttackIngestion()
+                    domains = ["enterprise", "ics"]
+                    success, message = attack_ingester.ingest_attack_data(
+                        graph, domains, clear_existing=True
+                    )
+
                 if success:
-                    st.sidebar.success(f"🎉 Successfully re-ingested {selected_framework} data!")
-                    st.rerun()
+                    st.sidebar.success("✅ KB reset and reingested!")
+                    invalidate_statistics_cache()
                 else:
-                    st.sidebar.error(f"❌ Failed to re-ingest {selected_framework} data: {msg}")
+                    st.sidebar.error(f"❌ Reset failed: {message}")
+
+            except Exception as e:
+                st.sidebar.error(f"❌ Error during reset: {str(e)}")
         else:
-            st.sidebar.info("Knowledge base is not initialized.")
+            st.sidebar.warning(
+                "⚠️ This will clear all ingested data. Click 'Confirm Reset' to proceed."
+            )
 
-    if st.sidebar.button("🔄 Reset Complete Knowledge Base"):
-        try:
-            from src.knowledge_base.database import clear_knowledge_base
-            clear_knowledge_base(graph)
-            st.session_state.knowledge_base_initialized = False
-            st.session_state.messages = []
-            st.success("Knowledge base reset successfully!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error resetting knowledge base: {e}")
+    # Logout
+    if st.sidebar.button("🚪 Logout", help="Logout from the application"):
+        from src.auth.auth import streamlit_logout
 
-    if st.sidebar.button("💬 Clear Chat History"):
-        st.session_state.messages = []
+        streamlit_logout()
         st.rerun()
+
+    st.sidebar.markdown("### ❓ Help")
+    with st.sidebar.expander("💡 Usage Tips"):
+        st.write(
+            """
+        **Chat Interface:**
+        - Ask about specific techniques (e.g., T1055)
+        - Query compliance controls
+        - Request framework comparisons
+        
+        **Document Ingestion:**
+        - Upload PDF documents
+        - Select appropriate framework type
+        - Wait for processing completion
+        
+        **Search:**
+        - Use specific keywords
+        - Filter by node types
+        - Adjust result limits
+        """
+        )
+
+
+def chat_tab(graph, llm):
+    """
+    Render the interactive chat interface for cybersecurity knowledge queries.
+
+    This function provides a conversational interface where users can ask questions
+    about cybersecurity frameworks, threat intelligence, and compliance requirements.
+    The chat maintains conversation history and provides contextual responses.
+
+    Args:
+        graph: Neo4j database connection for knowledge retrieval
+        llm: Language model service for generating responses
+    """
+    # Custom CSS for better chat styling
+    st.markdown(
+        """
+    <style>
+    .chat-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .feature-box {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 5px;
+        text-align: center;
+    }
+    .chat-stats {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin: 10px 0;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Enhanced header
+    st.markdown(
+        """
+    <div class="chat-header">
+        <h2 style="color: white; margin: 0;">🔍 Cybersecurity Knowledge Assistant</h2>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Your intelligent companion for cybersecurity frameworks and threat intelligence</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": "🎯 Welcome! I'm your cybersecurity knowledge assistant, ready to help you navigate the complex world of security frameworks and threat intelligence.",
+            }
+        )
+
+    # Enhanced feature showcase
+    st.markdown("#### 🌟 What I Can Help You With")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown(
+            """
+        <div class="feature-box">
+            <h4>🎯 ATT&CK Framework</h4>
+            <p style="margin: 0; font-size: 0.9em;">Techniques, tactics, threat groups</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        st.markdown(
+            """
+        <div class="feature-box">
+            <h4>📋 Compliance</h4>
+            <p style="margin: 0; font-size: 0.9em;">Compliance & regulatory frameworks</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        st.markdown(
+            """
+        <div class="feature-box">
+            <h4>🔗 Cross-Analysis</h4>
+            <p style="margin: 0; font-size: 0.9em;">Framework relationships</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col4:
+        st.markdown(
+            """
+        <div class="feature-box">
+            <h4>💡 Best Practices</h4>
+            <p style="margin: 0; font-size: 0.9em;">Implementation guidance</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    # Enhanced controls
+    st.markdown("#### 💬 Chat Controls")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        framework_scope = st.selectbox(
+            "🔍 Framework Scope",
+            ["All Frameworks", "ATT&CK Only", "Compliance Frameworks"],
+            help="Choose which frameworks to focus on for responses",
+        )
+
+    with col2:
+        if st.button(
+            "🧹 Clear Chat", help="Clear conversation history", use_container_width=True
+        ):
+            st.session_state.messages = []
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": "🎯 Chat cleared! Ready for new cybersecurity questions.",
+                }
+            )
+            st.rerun()
+
+    # Chat statistics
+    conversation_count = len(
+        [msg for msg in st.session_state.messages if msg["role"] == "user"]
+    )
+
+    if conversation_count > 0:
+        st.markdown(
+            f"""
+        <div class="chat-stats">
+            <strong>📊 Session:</strong> {conversation_count} questions • Scope: {framework_scope}
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    # Sample questions
+    with st.expander("💡 Sample Questions", expanded=False):
+        sample_cols = st.columns(2)
+        samples = [
+            "Tell me about ATT&CK technique T1055",
+            "What are NIST cybersecurity controls?",
+            "Show me techniques used by APT29",
+            "How do HIPAA controls map to threats?",
+        ]
+        for i, question in enumerate(samples):
+            with sample_cols[i % 2]:
+                if st.button(f"🔍 {question}", key=f"sample_{i}"):
+                    st.session_state.auto_question = question
+                    st.rerun()
+
+    # Enhanced chat display
+    st.markdown("#### 💭 Conversation")
+    chat_container = st.container()
+
+    with chat_container:
+        for i, message in enumerate(st.session_state.messages):
+            if message["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🤖"):
+                    if i == 0:
+                        st.info(
+                            "🛡️ **Hello!** I'm ready to help with cybersecurity frameworks, threat intelligence, and compliance questions. Try asking about specific ATT&CK techniques, compliance requirements, or security best practices!"
+                        )
+                    else:
+                        st.markdown(message["content"])
+            else:
+                with st.chat_message("user", avatar="👤"):
+                    st.markdown(message["content"])
+
+    # Handle auto-filled questions
+    prompt = None
+    if hasattr(st.session_state, "auto_question"):
+        prompt = st.session_state.auto_question
+        del st.session_state.auto_question
+    else:
+        prompt = st.chat_input(
+            "🔐 Ask about cybersecurity frameworks, threats, or compliance..."
+        )
+
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        with st.chat_message("user", avatar="👤"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant", avatar="🤖"):
+            with st.spinner("🧠 Analyzing and retrieving knowledge..."):
+                try:
+                    from src.api.llm_service import (
+                        analyze_user_query,
+                        chat_with_knowledge_base,
+                    )
+
+                    analysis = analyze_user_query(llm, prompt, framework_scope)
+                    context = get_context_from_knowledge_base(
+                        graph, prompt, max_results=20, framework_scope=framework_scope
+                    )
+                    response = chat_with_knowledge_base(
+                        llm, context, prompt, framework_scope
+                    )
+
+                    st.markdown(response)
+
+                    # Response metadata
+                    st.markdown(
+                        f"""
+                    <div style="background: #f8f9fa; padding: 8px; border-radius: 5px; margin-top: 10px; font-size: 0.8em; color: #6c757d;">
+                        📊 Generated using {framework_scope} • ⚡ Powered by Gemini AI
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": response}
+                    )
+
+                except Exception as e:
+                    error_msg = f"❌ I encountered an error: {str(e)}. Please try rephrasing your question."
+                    st.error(error_msg)
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": error_msg}
+                    )
+
+
+def knowledge_base_tab(graph):
+    """
+    Render the knowledge base management interface.
+
+    Provides comprehensive tools for exploring, searching, and managing
+    the cybersecurity knowledge base including statistics, search functionality,
+    and document management capabilities.
+
+    Args:
+        graph: Neo4j database connection for data operations
+    """
+    st.markdown("### 🔍 Knowledge Base Management")
+
+    kb_tab1, kb_tab2, kb_tab3 = st.tabs(["📊 Statistics", "🔍 Search", "⚙️ Management"])
+
+    with kb_tab1:
+        display_dynamic_statistics(graph)
+
+    with kb_tab2:
+        knowledge_base_search(graph)
+
+    with kb_tab3:
+        knowledge_base_management(graph)
+
+
+def knowledge_base_search(graph):
+    """
+    Provide advanced search functionality for the knowledge base.
+
+    Enables users to search across different node types, apply filters,
+    and retrieve specific information from the cybersecurity knowledge graph.
+
+    Args:
+        graph: Neo4j database connection for search operations
+    """
+    st.markdown("#### 🔍 Knowledge Base Search")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        search_query = st.text_input(
+            "Search Query",
+            placeholder="Enter keywords (e.g., 'credential access', 'T1055', 'encryption requirements')",
+            help="Search across all frameworks for techniques, controls, and requirements",
+        )
+
+    with col2:
+        # Fix the node types filter to work properly
+        available_types = [
+            "All",
+            "Technique",
+            "Control",
+            "Group",
+            "Software",
+            "Framework",
+        ]
+        node_types = st.multiselect(
+            "Filter by Type",
+            available_types,
+            default=["All"],
+            help="Select which types of information to search",
+        )
+
+    with st.expander("🛠️ Advanced Options"):
+        col3, col4 = st.columns(2)
+        with col3:
+            result_limit = st.slider("Result Limit", 5, 50, 15)
+        with col4:
+            exact_match = st.checkbox(
+                "Exact Match for IDs", help="Use for specific technique IDs like T1055"
+            )
+
+    if search_query:
+        try:
+            with st.spinner("Searching knowledge base..."):
+                # Determine search types based on filter
+                if "All" in node_types:
+                    search_types = [
+                        "Technique",
+                        "Control",
+                        "Group",
+                        "Software",
+                        "Framework",
+                    ]
+                else:
+                    search_types = [t for t in node_types if t != "All"]
+
+                all_results = []
+
+                for node_type in search_types:
+                    if exact_match:
+                        # Exact match queries
+                        if node_type == "Technique":
+                            query = """
+                            MATCH (n:Technique)
+                            WHERE n.technique_id = $search_term OR n.name = $search_term
+                            RETURN n.technique_id as id, 
+                                   n.name as name, n.description as description,
+                                   'Technique' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+                        elif node_type == "Control":
+                            query = """
+                            MATCH (n:Control)
+                            WHERE n.control_id = $search_term OR n.name = $search_term
+                            RETURN n.control_id as id, 
+                                   n.name as name, n.description as description,
+                                   'Control' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+                        else:
+                            query = f"""
+                            MATCH (n:{node_type})
+                            WHERE n.id = $search_term OR n.name = $search_term
+                            RETURN n.id as id, 
+                                   n.name as name, n.description as description,
+                                   '{node_type}' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+                    else:
+                        # Partial match queries - this is the key fix
+                        if node_type == "Technique":
+                            query = """
+                            MATCH (n:Technique)
+                            WHERE toLower(n.name) CONTAINS toLower($search_term) 
+                               OR toLower(n.description) CONTAINS toLower($search_term)
+                               OR toLower(COALESCE(n.technique_id, '')) CONTAINS toLower($search_term)
+                            RETURN n.technique_id as id, 
+                                   n.name as name, n.description as description,
+                                   'Technique' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+                        elif node_type == "Control":
+                            query = """
+                            MATCH (n:Control)
+                            WHERE toLower(n.name) CONTAINS toLower($search_term) 
+                               OR toLower(n.description) CONTAINS toLower($search_term)
+                               OR toLower(COALESCE(n.control_id, '')) CONTAINS toLower($search_term)
+                            RETURN n.control_id as id, 
+                                   n.name as name, n.description as description,
+                                   'Control' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+                        else:
+                            query = f"""
+                            MATCH (n:{node_type})
+                            WHERE toLower(n.name) CONTAINS toLower($search_term) 
+                               OR toLower(COALESCE(n.description, '')) CONTAINS toLower($search_term)
+                               OR toLower(COALESCE(n.id, '')) CONTAINS toLower($search_term)
+                            RETURN n.id as id, 
+                                   n.name as name, n.description as description,
+                                   '{node_type}' as type, labels(n) as labels
+                            LIMIT $limit
+                            """
+
+                    node_results = graph.query(
+                        query,
+                        {
+                            "search_term": search_query,
+                            "limit": result_limit,
+                        },
+                    )
+                    all_results.extend(node_results)
+
+                # Sort results by relevance and limit to the specified number
+                results = all_results[:result_limit]
+
+            if results:
+                st.success(f"🎯 Found {len(results)} results")
+
+                for i, result in enumerate(results, 1):
+                    result_id = result.get("id", "Unknown")
+                    result_name = result.get("name", "Unknown")
+                    display_name = (
+                        f"{result_id} - {result_name}"
+                        if result_id != "Unknown"
+                        else result_name
+                    )
+
+                    with st.expander(f"📄 Result {i}: {display_name}"):
+                        if result.get("id"):
+                            st.write(f"**ID**: {result['id']}")
+                        if result.get("name"):
+                            st.write(f"**Name**: {result['name']}")
+                        if result.get("type"):
+                            st.write(f"**Type**: {result['type']}")
+                        if result.get("description"):
+                            description = result["description"]
+                            if len(description) > 500:
+                                description = description[:500] + "..."
+                            st.write(f"**Description**: {description}")
+            else:
+                st.info(
+                    "🔍 No results found. Try different keywords or check your search criteria."
+                )
+
+        except Exception as e:
+            st.error(f"❌ Search error: {str(e)}")
+    else:
+        st.info("💡 Enter a search query to explore the knowledge base")
+
+
+def knowledge_base_management(graph):
+    """
+    Provide document management tools for compliance framework processing.
+
+    Allows users to upload new compliance documents and view processing guides.
+
+    Args:
+        graph: Neo4j database connection for management operations
+    """
+    st.markdown("#### ⚙️ Document Management")
+
+    st.markdown("##### 📄 Document Processing")
+    st.info(
+        "Upload compliance framework documents for automatic processing and knowledge graph integration."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Choose a PDF file",
+        type="pdf",
+        help="Upload any compliance or regulatory framework PDF",
+        key="pdf_uploader",
+    )
+
+    if uploaded_file:
+        # Create a unique key for this upload session
+        file_key = f"processing_{uploaded_file.name}_{uploaded_file.size}"
+
+        # Check if we're already processing this file
+        if f"processing_{file_key}" not in st.session_state:
+            st.session_state[f"processing_{file_key}"] = True
+
+            with st.spinner("🤖 Processing document..."):
+                try:
+                    from src.cybersecurity.compliance_ingestion import (
+                        ComplianceIngestion,
+                    )
+
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".pdf"
+                    ) as tmp_file:
+                        tmp_file.write(uploaded_file.read())
+                        tmp_file_path = tmp_file.name
+
+                    ingestion = ComplianceIngestion()
+                    success, message, stats = ingestion.ingest_document_with_llm(
+                        graph, tmp_file_path
+                    )
+
+                    os.unlink(tmp_file_path)
+
+                    if success:
+                        st.success(f"✅ {message}")
+
+                        if stats:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric(
+                                    "Controls Processed", stats.get("controls_count", 0)
+                                )
+                            with col2:
+                                st.metric(
+                                    "Relationships Created",
+                                    stats.get("relationships_created", 0),
+                                )
+                            with col3:
+                                st.metric(
+                                    "Technique Mappings",
+                                    stats.get("technique_mappings", 0),
+                                )
+
+                        # Clear the file uploader state to prevent "already ingested" message
+                        if f"processing_{file_key}" in st.session_state:
+                            del st.session_state[f"processing_{file_key}"]
+
+                        invalidate_statistics_cache()
+
+                        # Use success container with rerun button instead of automatic rerun
+                        st.info(
+                            "📊 Statistics updated! Switch to Statistics tab to see the changes."
+                        )
+                        if st.button(
+                            "🔄 Refresh Page", help="Refresh to clear the uploaded file"
+                        ):
+                            st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+                        if f"processing_{file_key}" in st.session_state:
+                            del st.session_state[f"processing_{file_key}"]
+
+                except Exception as e:
+                    st.error(f"❌ Error processing document: {str(e)}")
+                    if f"processing_{file_key}" in st.session_state:
+                        del st.session_state[f"processing_{file_key}"]
+
+    st.markdown("##### ❓ Document Processing Guide")
+    with st.expander("💡 How It Works"):
+        st.markdown(
+            """
+        **Smart Document Processing:**
+        1. 📄 **Upload**: Select any compliance framework PDF document
+        2. 🤖 **Analysis**: LLM automatically detects framework type and industry
+        3. 🏗️ **Structure Extraction**: AI extracts controls, requirements, and metadata
+        4. 🔗 **Knowledge Graph**: Creates nodes and relationships in the database
+        5. 🎯 **ATT&CK Mapping**: Maps compliance controls to MITRE ATT&CK techniques
+        
+        **Supported Formats:**
+        - Any compliance framework PDF (NIST, ISO 27001, PCI-DSS, HIPAA, etc.)
+        - Regulatory guidance documents
+        - Security standards and benchmarks
+        - Industry-specific compliance requirements
+        
+        **Processing Features:**
+        - Automatic framework type detection
+        - Industry classification
+        - Control-to-technique correlation
+        - Metadata extraction and validation
+        """
+        )

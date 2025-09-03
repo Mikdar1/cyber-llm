@@ -1,69 +1,91 @@
-"""
-Large Language Model Integration Service Module
+"""LLM integration utilities (Gemini) and prompt templates for chat and analysis."""
 
-This module provides integration with Google's Gemini LLM for cybersecurity
-intelligence analysis and chatbot functionality. It handles LLM initialization,
-prompt templating, and context-aware response generation using the MITRE ATT&CK
-knowledge base.
-
-Features:
-- Google Gemini LLM integration via LangChain
-- Cybersecurity-specialized prompt templates
-- Context-aware response generation
-- ATT&CK knowledge base integration
-- Document parsing and extraction services
-
-Functions:
-    get_llm: LLM factory and configuration
-    chat_with_knowledge_base: Main chat interface with context injection
-    
-Classes:
-    LLMService: Main service class for document extraction and analysis
-"""
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
-from src.config.settings import MODEL_NAME, GEMINI_API_KEY
+import json
 import logging
+import os
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from src.config.settings import GEMINI_API_KEY, MODEL_NAME
 
 # Suppress LangChain warnings
-import os
-os.environ['LANGCHAIN_TRACING_V2'] = 'false'
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+
+def get_ingestion_status():
+    """Return current ingestion status (frameworks, documents, totals)."""
+    try:
+        with open("src/config/ingestion_status.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {
+            "ingested_documents": [],
+            "ingested_frameworks": {
+                "attack": {
+                    "status": "not_ingested",
+                    "domains": [],
+                    "last_updated": None,
+                    "node_counts": {},
+                }
+            },
+            "total_nodes": 0,
+            "last_updated": None,
+        }
+
+
+def get_available_compliance_frameworks():
+    """Return names of compliance frameworks detected from ingested documents."""
+    status = get_ingestion_status()
+    compliance_frameworks = []
+
+    # Get frameworks from ingested documents
+    for doc in status.get("ingested_documents", []):
+        if (
+            doc.get("framework_type")
+            and doc["framework_type"] not in compliance_frameworks
+        ):
+            compliance_frameworks.append(doc["framework_type"])
+
+    return compliance_frameworks
+
+
+def generate_compliance_framework_description():
+    """Return a short description of available compliance frameworks."""
+    available_frameworks = get_available_compliance_frameworks()
+
+    if not available_frameworks:
+        return """📋 **Compliance Frameworks**: No compliance framework documents have been uploaded yet.
+    - Upload PDF documents through the web interface to add compliance frameworks
+    - Supported formats: Any compliance or regulatory framework document"""
+
+    framework_list = ", ".join(available_frameworks)
+    return f"""📋 **Compliance Frameworks**: Currently available frameworks based on uploaded documents:
+    - Active frameworks: {framework_list}
+    - Content extracted and processed via LLM-based document analysis
+    - Additional frameworks can be added by uploading more documents"""
 
 
 class LLMService:
-    """
-    Service class for LLM-based document parsing and analysis.
-    
-    Provides methods for extracting structured data from cybersecurity
-    framework documents using Google Gemini LLM.
-    """
-    
+    """LLM-based document parsing and analysis helper."""
+
     def __init__(self):
         """Initialize the LLM service."""
         self.llm = self._get_llm()
-    
+
     def _get_llm(self):
-        """Initialize and configure the Google Gemini LLM instance."""
+        """Return a configured Gemini LLM instance."""
         return ChatGoogleGenerativeAI(
             model=MODEL_NAME,
             temperature=0.1,  # Low temperature for consistent extraction
-            google_api_key=GEMINI_API_KEY
+            google_api_key=GEMINI_API_KEY,
         )
-    
+
     def generate_response(self, prompt: str) -> str:
-        """
-        Generate a response from the LLM based on the given prompt.
-        
-        Args:
-            prompt (str): The input prompt for the LLM
-            
-        Returns:
-            str: The LLM's response
-        """
+        """Generate a response string for a prompt."""
         try:
             response = self.llm.invoke(prompt)
-            if hasattr(response, 'content'):
+            if hasattr(response, "content"):
                 content = response.content
                 if isinstance(content, str):
                     return content
@@ -79,50 +101,57 @@ class LLMService:
 
 
 def get_llm():
-    """
-    Initialize and configure the Google Gemini LLM instance.
-    
-    Creates a ChatGoogleGenerativeAI instance with cybersecurity-optimized
-    settings including temperature control for consistent responses.
-    
-    Returns:
-        ChatGoogleGenerativeAI: Configured LLM instance for chat operations
-    """
+    """Return a configured Gemini LLM instance for chat operations."""
     return ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=0,  # Deterministic responses for cybersecurity accuracy
-        google_api_key=GEMINI_API_KEY
+        google_api_key=GEMINI_API_KEY,
     )
 
 
-# Framework-specific chat prompt templates
-framework_templates = {
-    "All Frameworks": ChatPromptTemplate.from_template("""
-You are a cybersecurity expert assistant with deep knowledge of multiple cybersecurity frameworks. 
-You have access to comprehensive cybersecurity intelligence from:
+def get_dynamic_framework_templates():
+    """Build prompt templates based on current ingestion status."""
+    status = get_ingestion_status()
+    available_frameworks = get_available_compliance_frameworks()
+    compliance_description = generate_compliance_framework_description()
 
-🎯 **MITRE ATT&CK**: Techniques, tactics, threat actors, malware, tools, and mitigations
-🛡️ **CIS Controls v8.1**: Critical security controls and implementation safeguards
-📋 **NIST CSF 2.0**: Functions, categories, subcategories, and implementation guidance
-🏥 **HIPAA**: Healthcare regulatory compliance requirements and privacy rules
-🏦 **FFIEC**: Financial institution examination procedures and guidance
-💳 **PCI DSS v4.0.1**: Payment card industry security standards and requirements
+    # Check if ATT&CK is available
+    attack_available = (
+        status.get("ingested_frameworks", {}).get("attack", {}).get("status")
+        == "ingested"
+    )
+    attack_info = (
+        "🎯 **MITRE ATT&CK**: Techniques, tactics, threat actors, malware, tools, and mitigations"
+        if attack_available
+        else "🎯 **MITRE ATT&CK**: Not yet loaded (run initialization to load ATT&CK data)"
+    )
 
-**Context from Multi-Framework Knowledge Base:**
-{context}
+    templates = {
+        "All Frameworks": ChatPromptTemplate.from_template(
+            f"""
+You are a cybersecurity expert assistant with access to cybersecurity intelligence from available frameworks.
 
-**User Question:** {question}
+**Currently Available Frameworks:**
+{attack_info}
+{compliance_description}
+
+**Context from Cybersecurity Knowledge Base:**
+{{context}}
+
+**User Question:** {{question}}
 
 **Instructions:**
-- Provide accurate, detailed responses based on ALL available cybersecurity frameworks
-- Reference specific framework codes when applicable (T#### for ATT&CK, CIS Control numbers, NIST function IDs, etc.)
-- Cross-reference between frameworks when relevant (e.g., how NIST CSF relates to CIS Controls)
+- Provide accurate, detailed responses based on currently available frameworks only
+- Reference specific framework codes when applicable (T#### for ATT&CK, control numbers for compliance frameworks)
+- Cross-reference between frameworks when relevant and data is available
 - If information spans multiple frameworks, provide a comprehensive view
 - Clearly indicate which framework(s) your information comes from
 - If information is not available in the knowledge base, clearly state this limitation
-"""),
-
-    "ATT&CK Only": ChatPromptTemplate.from_template("""
+- If a framework hasn't been loaded yet, inform the user how to load it
+"""
+        ),
+        "ATT&CK Only": ChatPromptTemplate.from_template(
+            """
 You are a MITRE ATT&CK expert assistant with deep knowledge of the ATT&CK framework.
 You have access to comprehensive ATT&CK intelligence including:
 
@@ -134,9 +163,9 @@ You have access to comprehensive ATT&CK intelligence including:
 📊 **Data Sources**: Detection data sources and monitoring capabilities
 
 **Context from ATT&CK Knowledge Base:**
-{context}
+{{context}}
 
-**User Question:** {question}
+**User Question:** {{question}}
 
 **Instructions:**
 - Focus exclusively on MITRE ATT&CK framework information
@@ -144,267 +173,247 @@ You have access to comprehensive ATT&CK intelligence including:
 - Reference specific threat groups, malware families, or tools when applicable
 - Provide detailed ATT&CK-specific analysis and intelligence
 - If information is not available in the ATT&CK knowledge base, clearly state this limitation
-"""),
+"""
+        ),
+    }
 
-    "CIS Controls": ChatPromptTemplate.from_template("""
-You are a CIS Controls expert assistant with deep knowledge of CIS Controls v8.1.
-You have access to comprehensive CIS Controls information including:
+    # Add compliance framework template only if compliance frameworks are available
+    if available_frameworks:
+        framework_list = ", ".join(available_frameworks)
+        templates["Compliance Frameworks"] = ChatPromptTemplate.from_template(
+            f"""
+You are a compliance framework expert assistant with knowledge of uploaded cybersecurity and regulatory frameworks.
 
-🛡️ **CIS Controls**: 18 critical security controls organized by implementation groups
-⚙️ **Safeguards**: Specific implementation safeguards for each control
-📊 **Implementation Groups**: IG1, IG2, and IG3 organizational maturity levels
-🎯 **Asset Types**: Controls organized by asset type and security functions
+**Currently Available Compliance Frameworks:** {framework_list}
 
-**Context from CIS Controls Knowledge Base:**
+**Framework Information Available:**
+📋 **Controls and Requirements**: Specific controls, requirements, and implementation guidance
+📂 **Organizational Structure**: Categories, subcategories, and hierarchical organization  
+💡 **Implementation Guidance**: Practical implementation examples and best practices
+🔍 **Document-Based Content**: Information extracted from uploaded framework documents
+
+**Context from Compliance Framework Knowledge Base:**
+{{context}}
+
+**User Question:** {{question}}
+
+**Instructions:**
+- Focus on compliance framework information available in the knowledge base
+- Reference specific control numbers, requirement IDs, or framework codes when available
+- Explain hierarchical relationships within frameworks when relevant
+- Provide implementation guidance and compliance recommendations
+- Clearly indicate which specific framework(s) your information comes from
+- Available frameworks: {framework_list}
+- If information is not available for a specific framework, clearly state this limitation
+ - Do not reference MITRE ATT&CK techniques (e.g., T####) or ATT&CK content in this scope. If the question is about ATT&CK, explain it's out of scope and suggest switching to "All Frameworks" or "ATT&CK Only".
+"""
+        )
+    else:
+        templates["Compliance Frameworks"] = ChatPromptTemplate.from_template(
+            """
+You are a compliance framework expert assistant.
+
+**Status:** No compliance framework documents have been uploaded yet.
+
+**Context from Knowledge Base:**
 {context}
 
 **User Question:** {question}
 
 **Instructions:**
-- Focus exclusively on CIS Controls v8.1 framework information
-- Reference specific control numbers (Control 1, Control 2, etc.) and safeguard IDs
-- Explain implementation groups (IG1, IG2, IG3) when relevant
-- Provide practical implementation guidance and best practices
-- If information is not available in the CIS Controls knowledge base, clearly state this limitation
-"""),
+- Inform the user that no compliance framework documents are currently available
+- Explain that they can upload PDF documents through the web interface to add compliance frameworks
+- Suggest using the document upload feature to add any compliance frameworks
+- If the question is about a specific compliance framework, explain how to upload the relevant documents
+"""
+        )
 
-    "NIST CSF": ChatPromptTemplate.from_template("""
-You are a NIST Cybersecurity Framework expert assistant with deep knowledge of NIST CSF 2.0.
-You have access to comprehensive NIST CSF information including:
+    return templates
 
-📋 **Functions**: Govern (GV), Identify (ID), Protect (PR), Detect (DE), Respond (RS), Recover (RC)
-📂 **Categories**: Organizational categories within each function
-📋 **Subcategories**: Specific cybersecurity outcomes and activities
-💡 **Implementation Examples**: Practical guidance for implementation
 
-**Context from NIST CSF Knowledge Base:**
-{context}
-
-**User Question:** {question}
-
-**Instructions:**
-- Focus exclusively on NIST Cybersecurity Framework 2.0 information
-- Reference specific function IDs (GV, ID, PR, DE, RS, RC), category IDs, and subcategory codes
-- Explain the hierarchical relationship between functions, categories, and subcategories
-- Provide implementation guidance and organizational context
-- If information is not available in the NIST CSF knowledge base, clearly state this limitation
-"""),
-
-    "HIPAA": ChatPromptTemplate.from_template("""
-You are a HIPAA compliance expert assistant with deep knowledge of HIPAA Administrative Simplification.
-You have access to comprehensive HIPAA regulatory information including:
-
-🏥 **Privacy Rules**: Protected health information (PHI) requirements and safeguards
-🔒 **Security Rules**: Administrative, physical, and technical safeguards
-📋 **Administrative Simplification**: Regulatory compliance requirements
-⚖️ **Enforcement**: Violation categories and penalty structures
-
-**Context from HIPAA Knowledge Base:**
-{context}
-
-**User Question:** {question}
-
-**Instructions:**
-- Focus exclusively on HIPAA regulatory framework information
-- Reference specific HIPAA sections, rules, and compliance requirements
-- Explain privacy and security rule requirements in detail
-- Provide compliance guidance and regulatory interpretation
-- If information is not available in the HIPAA knowledge base, clearly state this limitation
-"""),
-
-    "FFIEC": ChatPromptTemplate.from_template("""
-You are an FFIEC examination expert assistant with deep knowledge of FFIEC IT examination procedures.
-You have access to comprehensive FFIEC guidance including:
-
-🏦 **IT Examination Handbook**: Information technology examination procedures
-🔍 **Examination Categories**: Risk assessment and examination focus areas
-📋 **Procedures**: Detailed examination procedures and controls assessment
-⚖️ **Regulatory Guidance**: Financial institution compliance requirements
-
-**Context from FFIEC Knowledge Base:**
-{context}
-
-**User Question:** {question}
-
-**Instructions:**
-- Focus exclusively on FFIEC examination procedures and guidance
-- Reference specific FFIEC categories, procedures, and examination focus areas
-- Explain financial institution regulatory requirements and examination processes
-- Provide examination and compliance guidance
-- If information is not available in the FFIEC knowledge base, clearly state this limitation
-"""),
-
-    "PCI DSS": ChatPromptTemplate.from_template("""
-You are a PCI DSS compliance expert assistant with deep knowledge of PCI DSS v4.0.1.
-You have access to comprehensive PCI DSS information including:
-
-💳 **Requirements**: 12 high-level security requirements for cardholder data protection
-🔍 **Testing Procedures**: Detailed testing and validation procedures
-📋 **Guidance**: Implementation guidance and best practices
-🛡️ **Controls**: Technical and procedural security controls
-
-**Context from PCI DSS Knowledge Base:**
-{context}
-
-**User Question:** {question}
-
-**Instructions:**
-- Focus exclusively on PCI DSS v4.0.1 framework information
-- Reference specific requirement numbers, testing procedures, and guidance sections
-- Explain cardholder data protection requirements and implementation
-- Provide compliance guidance and security control recommendations
-- If information is not available in the PCI DSS knowledge base, clearly state this limitation
-""")
-}
+# Get dynamic framework templates based on current ingestion status
+framework_templates = get_dynamic_framework_templates()
 
 # Legacy template for backward compatibility
 chat_template = framework_templates["All Frameworks"]
 
 
 # Framework-aware query analysis prompt template
-query_analysis_template = ChatPromptTemplate.from_template("""
+def get_dynamic_query_analysis_template():
+    """Return a query-analysis template tailored to available frameworks."""
+    status = get_ingestion_status()
+    available_compliance_frameworks = get_available_compliance_frameworks()
+
+    # Build dynamic object types description
+    object_types_desc = "- ATT&CK: techniques, malware, threat_groups, tools, mitigations, data_sources, campaigns"
+
+    if available_compliance_frameworks:
+        object_types_desc += "\n- Compliance Frameworks: compliance_controls, compliance_requirements, compliance_categories, compliance_documents"
+        examples_section = """
+**Examples:**
+Framework: "ATT&CK Only", Question: "Tell me about APT28 techniques"
+Response: {"relevant_types": ["threat_groups", "techniques"], "keywords": ["APT28", "Fancy Bear"], "focus": "ATT&CK threat group techniques", "framework_filter": "ATT&CK Only"}
+
+Framework: "Compliance Frameworks", Question: "What are the data encryption requirements?"
+Response: {"relevant_types": ["compliance_controls", "compliance_requirements"], "keywords": ["data encryption", "cryptography"], "focus": "Compliance encryption requirements", "framework_filter": "Compliance Frameworks"}"""
+    else:
+        object_types_desc += "\n- Compliance Frameworks: No compliance frameworks currently available (upload documents to add frameworks)"
+        examples_section = """
+**Examples:**
+Framework: "ATT&CK Only", Question: "Tell me about APT28 techniques"
+Response: {"relevant_types": ["threat_groups", "techniques"], "keywords": ["APT28", "Fancy Bear"], "focus": "ATT&CK threat group techniques", "framework_filter": "ATT&CK Only"}
+
+Framework: "Compliance Frameworks", Question: "What are data encryption requirements?"
+Response: {"relevant_types": [], "keywords": ["data encryption"], "focus": "No compliance frameworks available", "framework_filter": "Compliance Frameworks"}"""
+
+    return ChatPromptTemplate.from_template(
+        f"""
 You are a cybersecurity query analyzer. Your task is to analyze user questions and determine which cybersecurity object types are most relevant within the specified framework scope.
 
-**Framework Scope:** {framework_scope}
+**Framework Scope:** {{framework_scope}}
 
 **Available Object Types by Framework:**
-- ATT&CK: techniques, malware, threat_groups, tools, mitigations, data_sources, campaigns
-- CIS Controls: cis_controls, cis_safeguards, implementation_groups
-- NIST CSF: nist_functions, nist_categories, nist_subcategories
-- HIPAA: hipaa_regulations, hipaa_sections, hipaa_requirements
-- FFIEC: ffiec_categories, ffiec_procedures, ffiec_guidance
-- PCI DSS: pci_requirements, pci_procedures, pci_controls
+{object_types_desc}
 
-**User Question:** {question}
+**User Question:** {{question}}
 
 **Instructions:**
-Analyze the question within the {framework_scope} context and return ONLY a JSON object:
-{{
+Analyze the question within the {{framework_scope}} context and return ONLY a JSON object:
+{{{{
     "relevant_types": ["type1", "type2", ...],
     "keywords": ["keyword1", "keyword2", ...],
     "focus": "primary_focus_description",
-    "framework_filter": "{framework_scope}"
-}}
+    "framework_filter": "{{framework_scope}}"
+}}}}
 
 **Rules:**
 - Only include object types relevant to the specified framework scope
-- If framework_scope is "All Frameworks", include types from all relevant frameworks
+- If framework_scope is "All Frameworks", include types from all available frameworks
 - Extract 3-5 key terms specific to the framework context
 - Focus should describe what the user wants to know within the framework scope
+- If no frameworks are available for a scope, return empty relevant_types
 
-**Examples:**
-Framework: "ATT&CK Only", Question: "Tell me about APT28 techniques"
-Response: {{"relevant_types": ["threat_groups", "techniques"], "keywords": ["APT28", "Fancy Bear"], "focus": "ATT&CK threat group techniques", "framework_filter": "ATT&CK Only"}}
+{examples_section}
+"""
+    )
 
-Framework: "CIS Controls", Question: "What is Control 1?"
-Response: {{"relevant_types": ["cis_controls", "cis_safeguards"], "keywords": ["Control 1", "asset management"], "focus": "CIS Control implementation", "framework_filter": "CIS Controls"}}
 
-Framework: "NIST CSF", Question: "Explain the Protect function"
-Response: {{"relevant_types": ["nist_functions", "nist_categories"], "keywords": ["Protect", "PR"], "focus": "NIST CSF Protect function", "framework_filter": "NIST CSF"}}
-""")
+# Get dynamic query analysis template
+query_analysis_template = get_dynamic_query_analysis_template()
 
 
 def analyze_user_query(llm, user_question, framework_scope="All Frameworks"):
-    """
-    Analyze user question to determine relevant object types and keywords within framework scope.
-    
-    Uses LLM to intelligently parse the user's question and identify which
-    specific object types should be queried based on the selected framework.
-    
-    Args:
-        llm: Configured language model instance
-        user_question (str): User's cybersecurity question
-        framework_scope (str): Selected framework scope
-        
-    Returns:
-        dict: Analysis results with relevant_types, keywords, focus, and framework_filter
-    """
+    """Analyze a question and return relevant_types, keywords, focus, and filter."""
     try:
-        response = llm.invoke(query_analysis_template.format(
-            question=user_question,
-            framework_scope=framework_scope
-        ))
-        
+        response = llm.invoke(
+            query_analysis_template.format(
+                question=user_question, framework_scope=framework_scope
+            )
+        )
+
         # Parse the JSON response
         import json
+
         analysis = json.loads(response.content.strip())
-        
+
         # Validate the response structure
-        if not isinstance(analysis.get('relevant_types'), list):
-            # Provide framework-specific defaults
+        if not isinstance(analysis.get("relevant_types"), list):
+            # Provide framework-specific defaults based on available frameworks
             if framework_scope == "ATT&CK Only":
-                analysis['relevant_types'] = ['techniques', 'malware', 'threat_groups']
-            elif framework_scope == "CIS Controls":
-                analysis['relevant_types'] = ['cis_controls', 'cis_safeguards']
-            elif framework_scope == "NIST CSF":
-                analysis['relevant_types'] = ['nist_functions', 'nist_categories']
-            elif framework_scope == "HIPAA":
-                analysis['relevant_types'] = ['hipaa_regulations', 'hipaa_sections']
-            elif framework_scope == "FFIEC":
-                analysis['relevant_types'] = ['ffiec_categories', 'ffiec_procedures']
-            elif framework_scope == "PCI DSS":
-                analysis['relevant_types'] = ['pci_requirements', 'pci_procedures']
+                analysis["relevant_types"] = ["techniques", "malware", "threat_groups"]
+            elif framework_scope == "Compliance Frameworks":
+                # Use generic compliance types since we don't know which specific frameworks
+                analysis["relevant_types"] = [
+                    "compliance_controls",
+                    "compliance_requirements",
+                    "compliance_categories",
+                ]
             else:
-                analysis['relevant_types'] = ['techniques', 'cis_controls', 'nist_functions']
-                
-        if not isinstance(analysis.get('keywords'), list):
-            analysis['keywords'] = [user_question]
-        if not analysis.get('focus'):
-            analysis['focus'] = f"cybersecurity inquiry within {framework_scope}"
-        if not analysis.get('framework_filter'):
-            analysis['framework_filter'] = framework_scope
-            
+                # All Frameworks - combine ATT&CK with generic compliance types
+                base_types = ["techniques", "malware", "threat_groups"]
+                available_frameworks = get_available_compliance_frameworks()
+                if available_frameworks:
+                    base_types.extend(
+                        ["compliance_controls", "compliance_requirements"]
+                    )
+                analysis["relevant_types"] = base_types
+
+        if not isinstance(analysis.get("keywords"), list):
+            analysis["keywords"] = [user_question]
+        if not analysis.get("focus"):
+            analysis["focus"] = f"cybersecurity inquiry within {framework_scope}"
+        if not analysis.get("framework_filter"):
+            analysis["framework_filter"] = framework_scope
+
         return analysis
-        
+
     except Exception as e:
         # Fallback to framework-specific analysis if LLM fails
+        available_frameworks = get_available_compliance_frameworks()
+
         if framework_scope == "ATT&CK Only":
             return {
-                'relevant_types': ['techniques', 'malware', 'threat_groups'],
-                'keywords': [user_question],
-                'focus': 'ATT&CK framework inquiry',
-                'framework_filter': framework_scope
+                "relevant_types": ["techniques", "malware", "threat_groups"],
+                "keywords": [user_question],
+                "focus": "ATT&CK framework inquiry",
+                "framework_filter": framework_scope,
             }
-        elif framework_scope == "CIS Controls":
-            return {
-                'relevant_types': ['cis_controls', 'cis_safeguards'],
-                'keywords': [user_question],
-                'focus': 'CIS Controls inquiry',
-                'framework_filter': framework_scope
-            }
+        elif framework_scope == "Compliance Frameworks":
+            if available_frameworks:
+                return {
+                    "relevant_types": [
+                        "compliance_controls",
+                        "compliance_requirements",
+                    ],
+                    "keywords": [user_question],
+                    "focus": "Compliance framework inquiry",
+                    "framework_filter": framework_scope,
+                }
+            else:
+                return {
+                    "relevant_types": [],
+                    "keywords": [user_question],
+                    "focus": "No compliance frameworks available",
+                    "framework_filter": framework_scope,
+                }
         else:
+            # All Frameworks fallback
+            base_types = ["techniques", "malware", "threat_groups"]
+            if available_frameworks:
+                base_types.extend(["compliance_controls", "compliance_requirements"])
+
             return {
-                'relevant_types': ['techniques', 'cis_controls', 'nist_functions'],
-                'keywords': [user_question],
-                'focus': 'multi-framework cybersecurity inquiry',
-                'framework_filter': framework_scope
+                "relevant_types": base_types,
+                "keywords": [user_question],
+                "focus": "multi-framework cybersecurity inquiry",
+                "framework_filter": framework_scope,
             }
 
 
-def chat_with_knowledge_base(llm, context, user_question, framework_scope="All Frameworks"):
-    """
-    Generate context-aware responses using the specified cybersecurity framework scope.
-    
-    Processes user questions with relevant context to provide framework-specific
-    cybersecurity intelligence responses.
-    
-    Args:
-        llm: Configured language model instance
-        context (str): Relevant knowledge base context
-        user_question (str): User's cybersecurity question
-        framework_scope (str): Selected framework scope for response
-        
-    Returns:
-        str: Generated response with framework-specific cybersecurity intelligence
-    """
+def chat_with_knowledge_base(
+    llm, context, user_question, framework_scope="All Frameworks"
+):
+    """Generate a framework-scoped response using provided context and question."""
     try:
+        # Hard guard: if scope is Compliance and the question is about ATT&CK T-codes, inform out-of-scope
+        if framework_scope == "Compliance Frameworks":
+            import re
+
+            if re.search(r"\bT\d{4}(?:\.\d{3})?\b", user_question, flags=re.IGNORECASE):
+                return (
+                    "This question references a MITRE ATT&CK technique (e.g., T-code), which is out of scope for 'Compliance Frameworks'. "
+                    "Switch scope to 'ATT&CK Only' or 'All Frameworks' to get ATT&CK-specific answers."
+                )
+
+        # Refresh framework templates to get latest ingestion status
+        current_templates = get_dynamic_framework_templates()
+
         # Select the appropriate template based on framework scope
-        template = framework_templates.get(framework_scope, framework_templates["All Frameworks"])
-        
-        response = llm.invoke(template.format(
-            context=context, 
-            question=user_question
-        ))
+        template = current_templates.get(
+            framework_scope, current_templates["All Frameworks"]
+        )
+
+        response = llm.invoke(template.format(context=context, question=user_question))
         return response.content
     except Exception as e:
         return f"❌ Error generating response: {e}"

@@ -1,0 +1,201 @@
+{
+  "schema_version": "2.0",
+  "unified_cybersecurity_kb": {
+    "attack_model": {
+      "nodes": {
+        "ATT&CK": {
+          "properties": ["name", "version", "domain"],
+          "description": "Root ATT&CK framework node"
+        },
+        "Tactic": {
+          "properties": ["x_mitre_shortname", "name", "description", "domain"],
+          "relationships": ["HAS_TECHNIQUE"]
+        },
+        "Technique": {
+          "properties": [
+            "technique_id",
+            "name",
+            "description",
+            "x_mitre_platforms",
+            "x_mitre_detection",
+            "domain"
+          ],
+          "relationships": ["HAS_SUBTECHNIQUE", "MITIGATES", "DETECTED_BY"]
+        },
+        "SubTechnique": {
+          "properties": [
+            "technique_id",
+            "name",
+            "description",
+            "parent_technique"
+          ],
+          "relationships": ["MITIGATES"]
+        },
+        "Mitigation": {
+          "properties": ["mitigation_id", "name", "description"]
+        },
+        "Group": {
+          "properties": ["group_id", "name", "description", "aliases"],
+          "relationships": ["USES", "ATTRIBUTED_TO"]
+        },
+        "Software": {
+          "properties": [
+            "software_id",
+            "name",
+            "description",
+            "x_mitre_platforms",
+            "software_type"
+          ],
+          "relationships": ["USES"],
+          "subtypes": ["Malware", "Tool"]
+        },
+        "DataSource": {
+          "properties": [
+            "data_source_id",
+            "name",
+            "description",
+            "x_mitre_platforms"
+          ],
+          "relationships": ["HAS_COMPONENT"]
+        },
+        "DataComponent": {
+          "properties": ["component_id", "name", "description"]
+        },
+        "Campaign": {
+          "properties": ["campaign_id", "name", "description"],
+          "relationships": ["ATTRIBUTED_TO", "USES"]
+        }
+      }
+    },
+    "compliance_model": {
+      "nodes": {
+        "Framework": {
+          "properties": [
+            "framework_id",
+            "name",
+            "version",
+            "source_document",
+            "ingested_date"
+          ],
+          "relationships": ["CONTAINS"]
+        },
+        "RegulatoryBody": {
+          "properties": ["body_id", "name"],
+          "relationships": ["PUBLISHES"]
+        },
+        "Control": {
+          "properties": [
+            "control_id",
+            "name",
+            "description",
+            "control_type",
+            "framework_reference"
+          ],
+          "relationships": [
+            "HAS_SUBCONTROL",
+            "APPLIES_TO",
+            "MAPS_TO",
+            "MITIGATES"
+          ]
+        },
+        "Industry": {
+          "properties": ["industry_id", "name"]
+        }
+      }
+    },
+    "document_tracking": {
+      "nodes": {
+        "Document": {
+          "properties": [
+            "document_id",
+            "filename",
+            "file_hash",
+            "upload_date",
+            "framework_type",
+            "status"
+          ],
+          "relationships": ["EXTRACTED_TO"]
+        }
+      }
+    }
+  },
+  "relationships": {
+    "HAS_TACTIC": {
+      "from": "ATT&CK",
+      "to": "Tactic"
+    },
+    "HAS_TECHNIQUE": {
+      "from": "Tactic",
+      "to": "Technique"
+    },
+    "HAS_SUBTECHNIQUE": {
+      "from": "Technique",
+      "to": "SubTechnique"
+    },
+    "USES": {
+      "from": ["Group", "Campaign", "Software"],
+      "to": ["Technique", "SubTechnique", "Software"]
+    },
+    "MITIGATES": {
+      "from": ["Mitigation", "Control"],
+      "to": ["Technique", "SubTechnique"]
+    },
+    "DETECTED_BY": {
+      "from": "Technique",
+      "to": "DataSource"
+    },
+    "HAS_COMPONENT": {
+      "from": "DataSource",
+      "to": "DataComponent"
+    },
+    "ATTRIBUTED_TO": {
+      "from": "Campaign",
+      "to": "Group"
+    },
+    "PUBLISHES": {
+      "from": "RegulatoryBody",
+      "to": "Framework"
+    },
+    "CONTAINS": {
+      "from": "Framework",
+      "to": "Control"
+    },
+    "HAS_SUBCONTROL": {
+      "from": "Control",
+      "to": "Control"
+    },
+    "APPLIES_TO": {
+      "from": "Control",
+      "to": "Industry"
+    },
+    "MAPS_TO": {
+      "from": "Control",
+      "to": "Control"
+    },
+    "EXTRACTED_TO": {
+      "from": "Document",
+      "to": "Framework"
+    }
+  },
+  "constraints": [
+    "CREATE CONSTRAINT technique_id_unique IF NOT EXISTS FOR (t:Technique) REQUIRE t.id IS UNIQUE",
+    "CREATE CONSTRAINT mitigation_id_unique IF NOT EXISTS FOR (m:Mitigation) REQUIRE m.id IS UNIQUE",
+    "CREATE CONSTRAINT group_id_unique IF NOT EXISTS FOR (g:Group) REQUIRE g.id IS UNIQUE",
+    "CREATE CONSTRAINT software_id_unique IF NOT EXISTS FOR (s:Software) REQUIRE s.id IS UNIQUE",
+    "CREATE CONSTRAINT data_source_id_unique IF NOT EXISTS FOR (ds:DataSource) REQUIRE ds.id IS UNIQUE",
+    "CREATE CONSTRAINT data_component_id_unique IF NOT EXISTS FOR (dc:DataComponent) REQUIRE dc.id IS UNIQUE",
+    "CREATE CONSTRAINT tactic_id_unique IF NOT EXISTS FOR (tac:Tactic) REQUIRE tac.id IS UNIQUE",
+    "CREATE CONSTRAINT campaign_id_unique IF NOT EXISTS FOR (cam:Campaign) REQUIRE cam.id IS UNIQUE",
+    "CREATE CONSTRAINT regulatory_body_id_unique IF NOT EXISTS FOR (rb:RegulatoryBody) REQUIRE rb.id IS UNIQUE",
+    "CREATE CONSTRAINT framework_id_unique IF NOT EXISTS FOR (f:Framework) REQUIRE f.id IS UNIQUE",
+    "CREATE CONSTRAINT control_id_unique IF NOT EXISTS FOR (c:Control) REQUIRE c.id IS UNIQUE",
+    "CREATE CONSTRAINT industry_id_unique IF NOT EXISTS FOR (ind:Industry) REQUIRE ind.id IS UNIQUE",
+    "CREATE CONSTRAINT document_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE"
+  ],
+  "indexes": [
+    "CREATE INDEX technique_name_idx IF NOT EXISTS FOR (t:Technique) ON (t.name)",
+    "CREATE INDEX control_type_idx IF NOT EXISTS FOR (c:Control) ON (c.control_type)",
+    "CREATE INDEX framework_name_idx IF NOT EXISTS FOR (f:Framework) ON (f.name)",
+    "CREATE INDEX document_status_idx IF NOT EXISTS FOR (d:Document) ON (d.status)"
+  ]
+}
