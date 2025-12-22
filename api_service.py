@@ -97,10 +97,12 @@ def initialize_api_knowledge_base(graph_connection):
 
         if existing_count == 0:
             logger.info("Initializing ATT&CK data for API...")
-            attack_ingester = AttackIngestion()
-            domains = ["enterprise"]
-            attack_ingester.run_full_ingestion(graph_connection, domains)
-            logger.info("ATT&CK data ingestion completed for API")
+            # --- COMMENT THESE LINES OUT TEMPORARILY ---
+            # attack_ingester = AttackIngestion()
+            # domains = ["enterprise"]
+            # attack_ingester.run_full_ingestion(graph_connection, domains)
+            # -------------------------------------------
+            logger.info("SKIPPING auto-ingestion to prevent startup timeout.")
         else:
             logger.info("Knowledge base already initialized")
 
